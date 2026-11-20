@@ -81,6 +81,7 @@ fun CuriositiesScreen(
   onUserWeightChange: (Float) -> Unit,
   onUserAgeChange: (Float) -> Unit,
   onOpenPlanetDetail: (String) -> Unit,
+  onOpenLabs: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   var selectedCategory by remember { mutableStateOf(CuriosityCategory.ALL) }
@@ -187,6 +188,7 @@ fun CuriositiesScreen(
           ageYears = userAgeYears,
           onWeightChange = onUserWeightChange,
           onAgeChange = onUserAgeChange,
+          onOpenLabs = onOpenLabs,
         )
       }
 
@@ -235,11 +237,12 @@ fun CuriositiesScreen(
 }
 
 @Composable
-private fun SpaceWeightAndAgeLab(
+fun SpaceWeightAndAgeLab(
   weightKg: Float,
   ageYears: Float,
   onWeightChange: (Float) -> Unit,
   onAgeChange: (Float) -> Unit,
+  onOpenLabs: (() -> Unit)? = null,
 ) {
   val samplePlanetIds = listOf("mercury", "mars", "jupiter", "saturn", "pluto")
   val planets = samplePlanetIds.map { SolarSystemData.getPlanetById(it) }
@@ -330,6 +333,20 @@ private fun SpaceWeightAndAgeLab(
               )
             }
           }
+        }
+      }
+
+      if (onOpenLabs != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+          onClick = onOpenLabs,
+          colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
+          shape = RoundedCornerShape(14.dp),
+          modifier = Modifier.fillMaxWidth().testTag("curiosity_open_all_labs_button"),
+        ) {
+          Icon(Icons.Rounded.Science, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("Apri tutti i 7 Laboratori Spaziali!", style = MaterialTheme.typography.labelLarge)
         }
       }
     }

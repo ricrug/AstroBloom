@@ -17,11 +17,14 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Quiz
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -38,7 +41,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -52,6 +58,7 @@ import androidx.navigation.navArgument
 import com.example.ui.components.ChibiCustomizerSheet
 import com.example.ui.screens.CuriositiesScreen
 import com.example.ui.screens.FreeExploreScreen
+import com.example.ui.screens.LabsScreen
 import com.example.ui.screens.LandingSimulatorScreen
 import com.example.ui.screens.PlanetDetailScreen
 import com.example.ui.screens.PlanetsHomeScreen
@@ -59,6 +66,7 @@ import com.example.ui.screens.QuizScreen
 import com.example.ui.theme.AstroViaggioTheme
 import com.example.ui.theme.ComicInk
 import com.example.ui.theme.CosmicAmber
+import com.example.ui.theme.NunitoFontFamily
 import com.example.ui.theme.SpaceCardElevated
 import com.example.ui.theme.SpaceNavy
 import com.example.ui.theme.SpaceVoid
@@ -74,6 +82,7 @@ private sealed class AstroTab(
 ) {
   data object Planets : AstroTab("planets", "Pianeti", Icons.Filled.Public, Icons.Outlined.Public)
   data object FreeExplore : AstroTab("free_explore", "Esplora 3D", Icons.Filled.Explore, Icons.Outlined.Explore)
+  data object Labs : AstroTab("labs", "Laboratori", Icons.Filled.Science, Icons.Outlined.Science)
   data object Curiosities : AstroTab("curiosities", "Curiosità", Icons.Filled.AutoAwesome, Icons.Outlined.AutoAwesome)
   data object Quiz : AstroTab("quiz", "Quiz", Icons.Filled.Quiz, Icons.Outlined.Quiz)
 }
@@ -110,7 +119,7 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
 
   var showChibiSheet by remember { mutableStateOf(false) }
 
-  val tabs = listOf(AstroTab.Planets, AstroTab.FreeExplore, AstroTab.Curiosities, AstroTab.Quiz)
+  val tabs = listOf(AstroTab.Planets, AstroTab.FreeExplore, AstroTab.Labs, AstroTab.Curiosities, AstroTab.Quiz)
   val isTopLevelRoute = currentRoute == null || tabs.any { it.route == currentRoute }
 
   fun navigateToTab(route: String) {
@@ -143,7 +152,20 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                     contentDescription = tab.label,
                   )
                 },
-                label = { Text(tab.label) },
+                label = {
+                  Text(
+                    text = tab.label,
+                    style =
+                      MaterialTheme.typography.labelSmall.copy(
+                        fontFamily = NunitoFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                      ),
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                  )
+                },
                 colors =
                   NavigationBarItemDefaults.colors(
                     selectedIconColor = ComicInk,
@@ -219,6 +241,16 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
               )
             }
 
+            composable(AstroTab.Labs.route) {
+              LabsScreen(
+                chibiProfile = chibiProfile,
+                userWeightKg = userWeightKg,
+                userAgeYears = userAgeYears,
+                onUserWeightChange = viewModel::setUserWeightKg,
+                onUserAgeChange = viewModel::setUserAgeYears,
+              )
+            }
+
             composable(AstroTab.Curiosities.route) {
               CuriositiesScreen(
                 chibiProfile = chibiProfile,
@@ -228,6 +260,9 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 onUserAgeChange = viewModel::setUserAgeYears,
                 onOpenPlanetDetail = { planetId ->
                   navController.navigate("planet_detail/$planetId")
+                },
+                onOpenLabs = {
+                  navigateToTab(AstroTab.Labs.route)
                 },
               )
             }
