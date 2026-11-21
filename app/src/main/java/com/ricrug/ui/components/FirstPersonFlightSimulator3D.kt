@@ -10,6 +10,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -280,7 +282,6 @@ fun FirstPersonFlightSimulator3D(
   var stickX by remember { mutableFloatStateOf(0f) }
   var stickY by remember { mutableFloatStateOf(0f) }
 
-  val hasStick = abs(stickX) > 0.03f || abs(stickY) > 0.03f
   val sunDist = shipPos.length()
 
   // Autopilot & simulation state
@@ -347,31 +348,35 @@ fun FirstPersonFlightSimulator3D(
             simTimeSec += dt
           }
 
-          if (hasStick) {
+          val stickMag = hypot(stickX, stickY)
+          if (stickMag > 0.02f) {
             isAutopilotSteering = false
-            // Yaw (virata): stickX > 0 (destra) -> vira a destra
-            val targetYawVel = -stickX * 1.65f
+            // Yaw (virata decisa e agile): stickX > 0 (destra) -> vira prontamente a destra
+            val targetYawVel = -stickX * 2.85f
             // Pitch (beccheggio): Arcade (spingi su = muso in alto) vs Aero (spingi su = picchiata)
-            val pitchFactor = if (invertPitch) 1.35f else -1.35f
+            val pitchFactor = if (invertPitch) 2.45f else -2.45f
             val targetPitchVel = stickY * pitchFactor
-            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 10.0f).coerceAtMost(1f)
-            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 10.0f).coerceAtMost(1f)
+            // Smoothing scattante a risposta immediata senza ritardi gommosi
+            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 20.0f).coerceAtMost(1f)
+            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 20.0f).coerceAtMost(1f)
 
             shipHeading += smoothYawVel * dt
             shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
-            // Aerodynamic coordinated banking into turns: bank rolls proportionally to yaw turn
-            val targetBank = (-stickX * 0.38f) + manualRollOffset
-            shipBank += (targetBank - shipBank) * (dt * 6.5f).coerceAtMost(1f)
+            // Rollio coordinato in virata naturale
+            val targetBank = (-stickX * 0.45f) + manualRollOffset
+            shipBank += (targetBank - shipBank) * (dt * 7.5f).coerceAtMost(1f)
           } else {
-            // Natural angular deceleration & auto-leveling to manualRollOffset (or 0)
-            smoothYawVel += (0f - smoothYawVel) * (dt * 8.0f).coerceAtMost(1f)
-            smoothPitchVel += (0f - smoothPitchVel) * (dt * 8.0f).coerceAtMost(1f)
-            if (abs(smoothYawVel) > 0.001f) shipHeading += smoothYawVel * dt
-            if (abs(smoothPitchVel) > 0.001f) shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
+            // Arresto rapido e preciso della rotazione al rilascio del pollice
+            smoothYawVel += (0f - smoothYawVel) * (dt * 14.0f).coerceAtMost(1f)
+            smoothPitchVel += (0f - smoothPitchVel) * (dt * 14.0f).coerceAtMost(1f)
+            if (abs(smoothYawVel) < 0.005f) smoothYawVel = 0f
+            if (abs(smoothPitchVel) < 0.005f) smoothPitchVel = 0f
+            if (abs(smoothYawVel) > 0.0001f) shipHeading += smoothYawVel * dt
+            if (abs(smoothPitchVel) > 0.0001f) shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
-            // Auto-level back to horizon
-            shipBank += (manualRollOffset - shipBank) * (dt * 5.5f).coerceAtMost(1f)
+            // Auto-leveling orizzontale morbido
+            shipBank += (manualRollOffset - shipBank) * (dt * 6.5f).coerceAtMost(1f)
           }
 
           if (isAutopilotSteering && autopilotTargetId != null) {
@@ -1253,15 +1258,18 @@ fun FirstPersonFlightSimulator3D(
             Text("SCAFO 100%", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = AuroraGreen, fontWeight = FontWeight.Bold)
           }
 
-          val joyLeftMaxPx = with(density) { 34.dp.toPx() }
+          val joyBoxSizeDp = 100.dp
+          val joyLeftMaxPx = with(density) { 38.dp.toPx() }
+          val isStickActive = abs(stickX) > 0.02f || abs(stickY) > 0.02f
+
           Box(
             modifier =
-              Modifier.size(92.dp)
+              Modifier.size(joyBoxSizeDp)
                 .background(Color(0xD90A1128), CircleShape)
-                .border(2.dp, Brush.radialGradient(listOf(CosmicCyan, Color(0xFF14203D))), CircleShape)
+                .border(2.dp, Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else CosmicCyan, Color(0xFF14203D))), CircleShape)
                 .pointerInput(Unit) {
-                  val centerPx = 46.dp.toPx()
-                  val deadzone = 4.dp.toPx()
+                  val centerPx = size.width / 2f
+                  val deadzone = 3.dp.toPx()
                   fun updateJoy(pos: Offset) {
                     isAutopilotSteering = false
                     val dx = pos.x - centerPx
@@ -1269,7 +1277,8 @@ fun FirstPersonFlightSimulator3D(
                     val dist = hypot(dx, dy)
                     if (dist > deadzone) {
                       val norm = ((dist - deadzone) / (joyLeftMaxPx - deadzone)).coerceIn(0f, 1f)
-                      val curved = norm * (0.35f + 0.65f * norm)
+                      // Curva progressiva ergonomica e pronta: risposta tangibile fin dai primi millimetri
+                      val curved = norm * (0.60f + 0.40f * norm)
                       val ang = atan2(dy, dx)
                       stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
                       stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
@@ -1278,19 +1287,25 @@ fun FirstPersonFlightSimulator3D(
                       stickY = 0f
                     }
                   }
-                  detectDragGestures(
-                    onDragStart = { offset -> updateJoy(offset) },
-                    onDragEnd = {
-                      stickX = 0f
-                      stickY = 0f
-                    },
-                    onDragCancel = {
-                      stickX = 0f
-                      stickY = 0f
-                    },
-                  ) { change, _ ->
-                    change.consume()
-                    updateJoy(change.position)
+                  awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isAutopilotSteering = false
+                    updateJoy(down.position)
+
+                    while (true) {
+                      val event = awaitPointerEvent()
+                      val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                      if (!change.pressed) {
+                        change.consume()
+                        stickX = 0f
+                        stickY = 0f
+                        break
+                      }
+                      change.consume()
+                      isAutopilotSteering = false
+                      updateJoy(change.position)
+                    }
                   }
                 }
                 .testTag("cockpit_flight_stick"),
@@ -1299,33 +1314,67 @@ fun FirstPersonFlightSimulator3D(
             Canvas(modifier = Modifier.fillMaxSize()) {
               val c = Offset(size.width / 2f, size.height / 2f)
               // Guide cerchi e tacche al neon
-              drawCircle(color = CosmicCyan.copy(alpha = if (hasStick) 0.5f else 0.22f), radius = size.minDimension * 0.46f, style = Stroke(width = 1.8f))
-              drawCircle(color = CosmicCyan.copy(alpha = 0.15f), radius = size.minDimension * 0.24f, style = Stroke(width = 1f))
+              drawCircle(color = CosmicCyan.copy(alpha = if (isStickActive) 0.65f else 0.25f), radius = size.minDimension * 0.46f, style = Stroke(width = if (isStickActive) 2.2f else 1.6f))
+              drawCircle(color = CosmicCyan.copy(alpha = 0.16f), radius = size.minDimension * 0.24f, style = Stroke(width = 1f))
               // Mirino centrale
               drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x - 10f, c.y), end = Offset(c.x + 10f, c.y), strokeWidth = 1.2f)
               drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x, c.y - 10f), end = Offset(c.x, c.y + 10f), strokeWidth = 1.2f)
-              // Frecce guida sottili
-              drawLine(color = CosmicCyan.copy(alpha = 0.45f), start = Offset(c.x, 5f), end = Offset(c.x, 12f), strokeWidth = 1.8f) // Cabra
-              drawLine(color = CosmicCyan.copy(alpha = 0.45f), start = Offset(c.x, size.height - 5f), end = Offset(c.x, size.height - 12f), strokeWidth = 1.8f) // Picchia
-              drawLine(color = CosmicCyan.copy(alpha = 0.45f), start = Offset(5f, c.y), end = Offset(12f, c.y), strokeWidth = 1.8f) // Sx
-              drawLine(color = CosmicCyan.copy(alpha = 0.45f), start = Offset(size.width - 5f, c.y), end = Offset(size.width - 12f, c.y), strokeWidth = 1.8f) // Dx
+
+              // Frecce guida con retroilluminazione attiva quando si spinge la cloche
+              val upColor = if (stickY < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+              val downColor = if (stickY > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+              val leftColor = if (stickX < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+              val rightColor = if (stickX > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+
+              drawLine(color = upColor, start = Offset(c.x, 5f), end = Offset(c.x, 14f), strokeWidth = if (stickY < -0.1f) 2.8f else 1.8f) // Cabra/Su
+              drawLine(color = downColor, start = Offset(c.x, size.height - 5f), end = Offset(c.x, size.height - 14f), strokeWidth = if (stickY > 0.1f) 2.8f else 1.8f) // Picchia/Giù
+              drawLine(color = leftColor, start = Offset(5f, c.y), end = Offset(14f, c.y), strokeWidth = if (stickX < -0.1f) 2.8f else 1.8f) // Sx
+              drawLine(color = rightColor, start = Offset(size.width - 5f, c.y), end = Offset(size.width - 14f, c.y), strokeWidth = if (stickX > 0.1f) 2.8f else 1.8f) // Dx
 
               // Se attivo, raggio laser che collega il centro alla manopola
               val knob = Offset(c.x + stickX * joyLeftMaxPx, c.y + stickY * joyLeftMaxPx)
-              if (hasStick) {
-                drawLine(color = CosmicCyan.copy(alpha = 0.55f), start = c, end = knob, strokeWidth = 2.4f)
+              if (isStickActive) {
+                drawLine(color = CosmicCyan.copy(alpha = 0.70f), start = c, end = knob, strokeWidth = 2.6f)
               }
               // Manopola cloche tridimensionale
-              drawCircle(brush = Brush.radialGradient(listOf(CosmicAmber, Color(0xFFE76F51))), radius = 13.dp.toPx(), center = knob)
-              drawCircle(color = ComicInk, radius = 13.dp.toPx(), center = knob, style = Stroke(width = 2f))
-              drawCircle(color = StarlightWhite, radius = 2.5.dp.toPx(), center = Offset(knob.x - 3.dp.toPx(), knob.y - 3.dp.toPx()))
+              drawCircle(brush = Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else Color(0xFFFFB703), Color(0xFFE76F51))), radius = 14.dp.toPx(), center = knob)
+              drawCircle(color = ComicInk, radius = 14.dp.toPx(), center = knob, style = Stroke(width = 2.2f))
+              drawCircle(color = StarlightWhite, radius = 3.dp.toPx(), center = Offset(knob.x - 3.dp.toPx(), knob.y - 3.dp.toPx()))
             }
           }
+
+          // Telemetria dinamica in tempo reale sotto la cloche
+          val stickMagnitude = hypot(stickX, stickY)
+          val stickLabel = if (stickMagnitude > 0.04f) {
+            val yawPct = (abs(stickX) * 100f).roundToInt()
+            val pitchPct = (abs(stickY) * 100f).roundToInt()
+            val yawDir = if (stickX > 0f) "DX" else "SX"
+            val pitchDir = if (stickY < 0f) (if (invertPitch) "GIÙ" else "SU") else (if (invertPitch) "SU" else "GIÙ")
+            "$yawDir $yawPct% • $pitchDir $pitchPct%"
+          } else {
+            "CLOCHE 3D (PRONTA)"
+          }
           Text(
-            text = "CLOCHE (POLLICE SX)",
+            text = stickLabel,
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
-            color = CosmicCyan,
+            color = if (stickMagnitude > 0.04f) AuroraGreen else CosmicCyan,
           )
+
+          // Toggle rapido Pitch (Arcade vs Aero) a portata di pollice sinistro
+          Surface(
+            onClick = { invertPitch = !invertPitch },
+            color = SpaceCard.copy(alpha = 0.75f),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.4f)),
+            modifier = Modifier.padding(top = 1.dp),
+          ) {
+            Text(
+              text = if (invertPitch) "PITCH: AERO" else "PITCH: ARCADE",
+              style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+              color = if (invertPitch) CosmicAmber else CosmicCyan,
+              modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            )
+          }
         }
 
         // 2. POSTAZIONE CENTRALE: Co-Pilota Chibi Olografico + Rotte Pianeti
