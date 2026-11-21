@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
@@ -8,22 +9,34 @@ plugins {
   alias(libs.plugins.google.services)
 }
 
+val versionPropsFile = rootProject.file("version.properties")
+val versionProps = Properties().apply {
+  if (versionPropsFile.exists()) {
+    versionPropsFile.inputStream().use { load(it) }
+  }
+}
+val currentVersionCode = (versionProps.getProperty("VERSION_CODE")
+  ?: project.findProperty("versionCode") as? String
+  ?: "1").toInt()
+val currentVersionName = versionProps.getProperty("VERSION_NAME")
+  ?: (project.findProperty("versionName") as? String)
+  ?: "1.0.0"
+
 android {
-  namespace = "com.example"
+  namespace = "com.ricrug"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
-    applicationId = "com.aistudio.astroviaggio.xrmqzp"
+    applicationId = "com.ricrug.astroviaggio"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = currentVersionCode
+    versionName = currentVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
-  // Do not remove or modify these signingConfigs. They are necessary for building, installing,
-  // and updating Android apps in AI Studio.
+  // Configurazioni di firma per AstroViaggio (Autore: RicRug)
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
@@ -45,13 +58,9 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
       signingConfig = signingConfigs.getByName("release")
     }
     debug {
-      // Do not remove or modify this signingConfig assignment. It is necessary for Android apps in
-      // AI Studio.
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
