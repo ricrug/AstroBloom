@@ -2,7 +2,10 @@ package com.ricrug.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
@@ -50,6 +54,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -76,12 +82,23 @@ import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
-import kotlin.math.sqrt
+
+private data class SurfaceDustParticle(
+  var x: Float,
+  var y: Float,
+  var z: Float,
+  var vx: Float,
+  var vy: Float,
+  var vz: Float,
+  var life: Float,
+  var maxLife: Float,
+)
 
 /**
  * Simulatore 3D in Prima Persona per lo Sbarco e l'Esplorazione Planetaria (EVA).
@@ -148,6 +165,11 @@ fun SurfaceFirstPersonViewer3D(
   var stickDeltaX by remember { mutableFloatStateOf(0f) }
   var stickDeltaY by remember { mutableFloatStateOf(0f) }
 
+  // Inerzia fisica del movimento e particelle
+  var velocityX by remember { mutableFloatStateOf(0f) }
+  var velocityZ by remember { mutableFloatStateOf(0f) }
+  val dustParticles = remember { mutableStateListOf<SurfaceDustParticle>() }
+
   // Passo e oscillazione (head bobbing)
   var walkCycle by remember { mutableFloatStateOf(0f) }
   var oxygenLevel by remember { mutableFloatStateOf(100f) }
@@ -197,28 +219,71 @@ fun SurfaceFirstPersonViewer3D(
         // Consumo ossigeno graduale
         oxygenLevel = (oxygenLevel - dt * 0.012f).coerceIn(0f, 100f)
 
-        // 1. Movimento Orizzontale da Stick (Abilitato dopo essere scesi dall'astronave)
+        // 1. Movimento Orizzontale con Inerzia Fisica della Tuta Spaziale
+        val isLowGravity = env.gravityRatio < 0.6f
+        val maxWalkSpeed = if (isGrounded) (if (isLowGravity) 4.2f else 3.6f) else 2.5f
+        val yawRad = playerYawDeg * PI.toFloat() / 180f
+        val fwdX = sin(yawRad)
+        val fwdZ = cos(yawRad)
+        val rightX = cos(yawRad)
+        val rightZ = -sin(yawRad)
+
+        var targetVX = 0f
+        var targetVZ = 0f
+
         if (stickActive && !isInsideShip) {
           val moveMag = sqrt(stickDeltaX * stickDeltaX + stickDeltaY * stickDeltaY).coerceIn(0f, 1f)
-          if (moveMag > 0.05f) {
-            val yawRad = playerYawDeg * PI.toFloat() / 180f
-            // Vettori di direzione camera
-            val fwdX = sin(yawRad)
-            val fwdZ = cos(yawRad)
-            val rightX = cos(yawRad)
-            val rightZ = -sin(yawRad)
-
-            // Velocità di camminata (influenzata leggermente dalla gravità)
-            val baseSpeed = if (isGrounded) 3.6f else 2.2f
+          if (moveMag > 0.04f) {
             val moveDirX = rightX * stickDeltaX + fwdX * (-stickDeltaY)
             val moveDirZ = rightZ * stickDeltaX + fwdZ * (-stickDeltaY)
-
-            playerX += moveDirX * baseSpeed * dt
-            playerZ += moveDirZ * baseSpeed * dt
+            targetVX = moveDirX * maxWalkSpeed
+            targetVZ = moveDirZ * maxWalkSpeed
 
             if (isGrounded) {
-              walkCycle += dt * 7.5f * moveMag
+              val hopFreq = if (isLowGravity) 5.8f else 7.2f
+              walkCycle += dt * hopFreq * moveMag
             }
+          }
+        }
+
+        // Rampa di accelerazione e inerzia progressiva
+        val accelRate = if (isGrounded) (if (isLowGravity) 8.5f else 12f) else 3.0f
+        velocityX += (targetVX - velocityX) * (accelRate * dt).coerceIn(0f, 1f)
+        velocityZ += (targetVZ - velocityZ) * (accelRate * dt).coerceIn(0f, 1f)
+
+        playerX += velocityX * dt
+        playerZ += velocityZ * dt
+
+        // Particelle di regolite sollevate dai passi sul suolo
+        val currentHorizSpeed = sqrt(velocityX * velocityX + velocityZ * velocityZ)
+        if (isGrounded && currentHorizSpeed > 0.6f && (simTimeSec * 14).toInt() != ((simTimeSec - dt) * 14).toInt()) {
+          val pSide = if (sin(walkCycle) > 0f) -0.32f else 0.32f
+          dustParticles.add(
+            SurfaceDustParticle(
+              x = playerX + rightX * pSide + (cos(simTimeSec * 19f) * 0.12f),
+              y = 0.04f,
+              z = playerZ + rightZ * pSide + (sin(simTimeSec * 19f) * 0.12f),
+              vx = -velocityX * 0.20f + (cos(simTimeSec * 31f) * 0.35f),
+              vy = 0.7f + (env.gravityRatio * 0.35f),
+              vz = -velocityZ * 0.20f + (sin(simTimeSec * 31f) * 0.35f),
+              life = 0f,
+              maxLife = if (isLowGravity) 1.25f else 0.7f,
+            )
+          )
+          if (dustParticles.size > 24) dustParticles.removeAt(0)
+        }
+
+        val pIter = dustParticles.iterator()
+        while (pIter.hasNext()) {
+          val p = pIter.next()
+          p.life += dt
+          if (p.life >= p.maxLife) {
+            pIter.remove()
+          } else {
+            p.vy -= env.gravityMs2 * 0.55f * dt
+            p.x += p.vx * dt
+            p.y = (p.y + p.vy * dt).coerceAtLeast(0.01f)
+            p.z += p.vz * dt
           }
         }
 
@@ -234,10 +299,6 @@ fun SurfaceFirstPersonViewer3D(
         }
 
         // 3. Rilevamento Prossimità e Lock-On Bersagli nel Mirino
-        val yawRad = playerYawDeg * PI.toFloat() / 180f
-        val fwdX = sin(yawRad)
-        val fwdZ = cos(yawRad)
-
         var closestSample: SurfaceSample? = null
         var closestSampleDist = 999f
 
@@ -311,219 +372,243 @@ fun SurfaceFirstPersonViewer3D(
           // Swipe per orientare lo sguardo a 360°
           detectDragGestures { change, dragAmount ->
             change.consume()
-            playerYawDeg = (playerYawDeg + dragAmount.x * 0.16f + 360f) % 360f
-            playerPitchDeg = (playerPitchDeg - dragAmount.y * 0.14f).coerceIn(-50f, 50f)
+            playerYawDeg = (playerYawDeg + dragAmount.x * 0.18f + 360f) % 360f
+            playerPitchDeg = (playerPitchDeg - dragAmount.y * 0.15f).coerceIn(-50f, 50f)
           }
         },
     ) {
       val canvasW = size.width
       val canvasH = size.height
 
-      // Head bobbing durante la camminata
-      val bobbingOffset = if (isGrounded && stickActive) sin(walkCycle) * 0.06f else 0f
+      // Head bobbing e balzo a gravità ridotta (lunar hop) durante la camminata
+      val isLowGravity = env.gravityRatio < 0.6f
+      val currentHorizSpeed = sqrt(velocityX * velocityX + velocityZ * velocityZ)
+      val hopHeight = if (isLowGravity) 0.12f else 0.05f
+      val bobbingOffset = if (isGrounded && currentHorizSpeed > 0.1f) abs(sin(walkCycle)) * hopHeight else 0f
       val currentEyeY = playerY + bobbingOffset
+
+      // Oscillazione di rollio laterale durante la camminata / balzo
+      val rollSway = if (isGrounded && currentHorizSpeed > 0.1f) sin(walkCycle * 0.5f) * (if (isLowGravity) 1.6f else 0.7f) else 0f
+
+      // Fattore prospettico FOV e scala angolare per allineamento 3D perfetto del cielo
+      val fovFactor = canvasW * 0.95f
+      val pxPerDeg = fovFactor * (PI.toFloat() / 180f)
 
       // Linea dell'Orizzonte prospettica basata sul Pitch dello sguardo
       val horizonY = canvasH * 0.5f + playerPitchDeg * 7.5f
 
-      // =========================================================================
-      // 1. SKYBOX & PANORAMA PLANETARIO OLTRE L'ORIZZONTE
-      // =========================================================================
-      drawRect(
-        brush = Brush.verticalGradient(
-          colors = listOf(env.skyTopColor, env.skyHorizonColor),
-          startY = 0f,
-          endY = max(1f, horizonY),
-        ),
-        topLeft = Offset.Zero,
-        size = Size(canvasW, max(1f, horizonY)),
-      )
-
-      // 1.1 Campo Stellare Iper-Dettagliato (Nettamente visibile su corpi senza atmosfera)
-      val starAlpha = when {
-        env.pressureAtm == 0f -> 0.90f // Vuoto cosmico lunare o mercuriano
-        env.pressureAtm < 0.05f -> 0.45f // Atmosfera sottile marziana
-        else -> 0.10f // Venere / Terra
-      }
-      if (starAlpha > 0.08f) {
-        for (i in 0 until 80) {
-          val sx = ((i * 137 + (playerYawDeg * 5.2f).toInt()) % canvasW.toInt() + canvasW) % canvasW
-          val sy = ((i * 79 + 11) % (max(1f, horizonY) * 0.88f).toInt()).toFloat()
-          val isBright = i % 8 == 0
-          drawCircle(
-            color = if (isBright) CosmicCyan.copy(alpha = starAlpha) else Color.White.copy(alpha = starAlpha * (0.5f + (i % 3) * 0.25f)),
-            radius = if (isBright) 2.6f else 1.2f,
-            center = Offset(sx, sy),
-          )
-        }
-      }
-
-      // 1.2 Sole 3D Proporzionato alla Vera Distanza Orbitale
-      val sunYawRel = ((180f - playerYawDeg + 360f) % 360f) - 180f
-      if (abs(sunYawRel) < 90f) {
-        val sunX = canvasW * 0.5f + sunYawRel * (canvasW / 90f)
-        val sunY = horizonY - 140f
-        val sunBaseR = (22f * env.sunScale).coerceIn(8f, 95f)
-
-        // Corona Solare Radiante
-        drawCircle(
-          brush = Brush.radialGradient(
-            colors = listOf(Color(0xFFFFFBEB), CosmicAmber.copy(alpha = 0.55f), Color.Transparent),
-            center = Offset(sunX, sunY),
-            radius = sunBaseR * 3.2f,
+      rotate(degrees = rollSway, pivot = Offset(canvasW * 0.5f, canvasH * 0.5f)) {
+        // =========================================================================
+        // 1. SKYBOX & PANORAMA PLANETARIO OLTRE L'ORIZZONTE
+        // =========================================================================
+        drawRect(
+          brush = Brush.verticalGradient(
+            colors = listOf(env.skyTopColor, env.skyHorizonColor),
+            startY = 0f,
+            endY = max(1f, horizonY),
           ),
-          radius = sunBaseR * 3.2f,
-          center = Offset(sunX, sunY),
+          topLeft = Offset.Zero,
+          size = Size(canvasW, max(1f, horizonY)),
         )
-        drawCircle(color = Color.White, radius = sunBaseR, center = Offset(sunX, sunY))
 
-        // Raggi solari su mondi senza atmosfera (Mercurio / Luna)
-        if (env.pressureAtm == 0f) {
-          for (ray in 0 until 6) {
-            val rAngle = (ray * 60f + simTimeSec * 4f) * PI.toFloat() / 180f
-            drawLine(
-              color = Color.White.copy(alpha = 0.35f),
-              start = Offset(sunX + cos(rAngle) * sunBaseR, sunY + sin(rAngle) * sunBaseR),
-              end = Offset(sunX + cos(rAngle) * sunBaseR * 2.2f, sunY + sin(rAngle) * sunBaseR * 2.2f),
-              strokeWidth = 2.0f,
-            )
+        // 1.1 Campo Stellare Iper-Dettagliato (Sincronizzato a 360° con la Rotazione)
+        val starAlpha = when {
+          env.pressureAtm == 0f -> 0.90f // Vuoto cosmico lunare o mercuriano
+          env.pressureAtm < 0.05f -> 0.45f // Atmosfera sottile marziana
+          else -> 0.10f // Venere / Terra
+        }
+        if (starAlpha > 0.08f) {
+          for (i in 0 until 90) {
+            val starAzimuth = (i * 37.7f) % 360f
+            val starElevation = 18f + (i * 39f) % 240f
+            val starRelYaw = ((starAzimuth - playerYawDeg + 540f) % 360f) - 180f
+            if (abs(starRelYaw) < 85f) {
+              val sx = canvasW * 0.5f + starRelYaw * pxPerDeg
+              val sy = horizonY - starElevation
+              if (sy > 0f) {
+                val isBright = i % 7 == 0
+                drawCircle(
+                  color = if (isBright) CosmicCyan.copy(alpha = starAlpha) else Color.White.copy(alpha = starAlpha * (0.5f + (i % 3) * 0.25f)),
+                  radius = if (isBright) 2.4f else 1.2f,
+                  center = Offset(sx, sy),
+                )
+              }
+            }
           }
         }
-      }
 
-      // 1.3 Corpi Celesti Monumentali Visibili nel Cielo
-      val celestialInSkyX = canvasW * 0.5f + (((playerYawDeg + 130f) % 360f) - 180f) * (canvasW / 90f)
-      val celestialInSkyY = horizonY - 185f
+        // 1.2 Sole 3D Proporzionato alla Vera Distanza Orbitale
+        val sunAzimuth = 180f
+        val sunRelYaw = ((sunAzimuth - playerYawDeg + 540f) % 360f) - 180f
+        if (abs(sunRelYaw) < 85f) {
+          val sunX = canvasW * 0.5f + sunRelYaw * pxPerDeg
+          val sunY = horizonY - 140f
+          val sunBaseR = (22f * env.sunScale).coerceIn(8f, 95f)
 
-      if (planetId.lowercase() == "moon") {
-        // 🌍 LA TERRA (THE BLUE MARBLE) GIGANTE DALLA LUNA
-        val earthR = 68f
-        // Alone atmosferico azzurro
-        drawCircle(
-          brush = Brush.radialGradient(
-            colors = listOf(Color(0xFF60A5FA).copy(alpha = 0.6f), Color.Transparent),
-            center = Offset(celestialInSkyX, celestialInSkyY),
-            radius = earthR * 1.35f,
+          // Corona Solare Radiante
+          drawCircle(
+            brush = Brush.radialGradient(
+              colors = listOf(Color(0xFFFFFBEB), CosmicAmber.copy(alpha = 0.55f), Color.Transparent),
+              center = Offset(sunX, sunY),
+              radius = sunBaseR * 3.2f,
+            ),
+            radius = sunBaseR * 3.2f,
+            center = Offset(sunX, sunY),
+          )
+          drawCircle(color = Color.White, radius = sunBaseR, center = Offset(sunX, sunY))
+
+          // Raggi solari su mondi senza atmosfera (Mercurio / Luna)
+          if (env.pressureAtm == 0f) {
+            for (ray in 0 until 6) {
+              val rAngle = (ray * 60f + simTimeSec * 4f) * PI.toFloat() / 180f
+              drawLine(
+                color = Color.White.copy(alpha = 0.35f),
+                start = Offset(sunX + cos(rAngle) * sunBaseR, sunY + sin(rAngle) * sunBaseR),
+                end = Offset(sunX + cos(rAngle) * sunBaseR * 2.2f, sunY + sin(rAngle) * sunBaseR * 2.2f),
+                strokeWidth = 2.0f,
+              )
+            }
+          }
+        }
+
+        // 1.3 Corpi Celesti Monumentali Visibili nel Cielo (Sincronizzati a 360°)
+        val celestialAzimuth = 70f
+        val celestialRelYaw = ((celestialAzimuth - playerYawDeg + 540f) % 360f) - 180f
+        val celestialInSkyX = canvasW * 0.5f + celestialRelYaw * pxPerDeg
+        val celestialInSkyY = horizonY - 185f
+        val isCelestialVisible = abs(celestialRelYaw) < 95f
+
+        if (isCelestialVisible) {
+          if (planetId.lowercase() == "moon") {
+            // 🌍 LA TERRA (THE BLUE MARBLE) GIGANTE DALLA LUNA
+            val earthR = 68f
+            // Alone atmosferico azzurro
+            drawCircle(
+              brush = Brush.radialGradient(
+                colors = listOf(Color(0xFF60A5FA).copy(alpha = 0.6f), Color.Transparent),
+                center = Offset(celestialInSkyX, celestialInSkyY),
+                radius = earthR * 1.35f,
+              ),
+              radius = earthR * 1.35f,
+              center = Offset(celestialInSkyX, celestialInSkyY),
+            )
+            // Oceano azzurro profondo
+            drawCircle(color = Color(0xFF1D4ED8), radius = earthR, center = Offset(celestialInSkyX, celestialInSkyY))
+            // Continenti verdi/ocra (Africa / Eurasia)
+            drawCircle(color = Color(0xFF15803D), radius = earthR * 0.55f, center = Offset(celestialInSkyX - earthR * 0.2f, celestialInSkyY - earthR * 0.15f))
+            drawCircle(color = Color(0xFFD97706), radius = earthR * 0.35f, center = Offset(celestialInSkyX + earthR * 0.3f, celestialInSkyY + earthR * 0.2f))
+            // Vortici di nuvole bianche
+            drawOval(
+              color = Color.White.copy(alpha = 0.75f),
+              topLeft = Offset(celestialInSkyX - earthR * 0.7f, celestialInSkyY - earthR * 0.35f),
+              size = Size(earthR * 1.4f, earthR * 0.35f),
+            )
+            drawOval(
+              color = Color.White.copy(alpha = 0.65f),
+              topLeft = Offset(celestialInSkyX - earthR * 0.5f, celestialInSkyY + earthR * 0.15f),
+              size = Size(earthR * 1.1f, earthR * 0.25f),
+            )
+          } else if (planetId.lowercase() == "jupiter") {
+            // 🪐 GIOVE COLOSSALE CHE DOMINA IL CIELO DI EUROPA
+            val jupR = 105f
+            drawCircle(color = Color(0xFFC2410C), radius = jupR, center = Offset(celestialInSkyX, celestialInSkyY))
+            // Fasce nuvolose animate zonate
+            for (b in -3..3) {
+              val bCol = if (b % 2 == 0) Color(0xFF78350F) else Color(0xFFD97706)
+              drawLine(
+                color = bCol.copy(alpha = 0.85f),
+                start = Offset(celestialInSkyX - jupR * 0.95f, celestialInSkyY + b * 24f),
+                end = Offset(celestialInSkyX + jupR * 0.95f, celestialInSkyY + b * 24f),
+                strokeWidth = 14f,
+              )
+            }
+            // Grande Macchia Rossa
+            drawOval(
+              color = Color(0xFFB91C1C),
+              topLeft = Offset(celestialInSkyX + jupR * 0.25f, celestialInSkyY + 18f),
+              size = Size(34f, 20f),
+            )
+          } else if (planetId.lowercase() == "mars") {
+            // Luna marziana Phobos che sfreccia nel cielo
+            drawCircle(color = Color(0xFF94A3B8), radius = 9f, center = Offset(celestialInSkyX, celestialInSkyY))
+            drawCircle(color = Color(0xFF475569), radius = 3.5f, center = Offset(celestialInSkyX - 2f, celestialInSkyY - 1f))
+          } else if (planetId.lowercase() == "saturn") {
+            // Saturno con anelli dorati inclinati
+            val satR = 54f
+            drawCircle(color = Color(0xFFD97706), radius = satR, center = Offset(celestialInSkyX, celestialInSkyY))
+            // Anelli dorati ellittici inclinati
+            rotate(degrees = -25f, pivot = Offset(celestialInSkyX, celestialInSkyY)) {
+              drawOval(
+                color = Color(0xFFFDE68A).copy(alpha = 0.75f),
+                topLeft = Offset(celestialInSkyX - satR * 2.1f, celestialInSkyY - satR * 0.45f),
+                size = Size(satR * 4.2f, satR * 0.9f),
+                style = Stroke(width = 8f),
+              )
+            }
+          }
+        }
+
+        // 1.4 Catene Montuose a 3 Livelli di Profondità (Parallasse Panoramico)
+        val farOffset = -playerYawDeg * pxPerDeg * 0.35f
+        val distantMountainPath = Path().apply {
+          moveTo(0f, horizonY)
+          for (x in 0..canvasW.toInt() step 25) {
+            val phase = (x - farOffset) * 0.0075f
+            val dH = (sin(phase) * 55f + cos(phase * 2.1f) * 28f + sin(phase * 4.3f) * 12f).coerceAtLeast(0f)
+            lineTo(x.toFloat(), horizonY - dH)
+          }
+          lineTo(canvasW, horizonY)
+          close()
+        }
+        drawPath(
+          path = distantMountainPath,
+          color = env.terrainSecondaryColor.copy(alpha = 0.45f),
+        )
+
+        val midOffset = -playerYawDeg * pxPerDeg * 0.65f
+        val midHillsPath = Path().apply {
+          moveTo(0f, horizonY)
+          for (x in 0..canvasW.toInt() step 20) {
+            val phase = (x - midOffset) * 0.014f
+            val mH = (sin(phase) * 32f + cos(phase * 2.8f) * 18f).coerceAtLeast(0f)
+            lineTo(x.toFloat(), horizonY - mH)
+          }
+          lineTo(canvasW, horizonY)
+          close()
+        }
+        drawPath(
+          path = midHillsPath,
+          color = env.terrainSecondaryColor.copy(alpha = 0.75f),
+        )
+
+        val nearOffset = -playerYawDeg * pxPerDeg
+        val nearHorizonPath = Path().apply {
+          moveTo(0f, horizonY)
+          for (x in 0..canvasW.toInt() step 15) {
+            val phase = (x - nearOffset) * 0.022f
+            val nH = (sin(phase) * 14f + cos(phase * 3.5f) * 8f).coerceAtLeast(0f)
+            lineTo(x.toFloat(), horizonY - nH)
+          }
+          lineTo(canvasW, horizonY)
+          close()
+        }
+        drawPath(
+          path = nearHorizonPath,
+          color = env.terrainSecondaryColor,
+        )
+
+        // =========================================================================
+        // 2. TERRENO SUPERFICIALE PROSPETTICO 3D NAVIGABILE
+        // =========================================================================
+        drawRect(
+          brush = Brush.verticalGradient(
+            colors = listOf(env.skyHorizonColor, env.terrainSecondaryColor, env.terrainPrimaryColor),
+            startY = horizonY,
+            endY = canvasH,
           ),
-          radius = earthR * 1.35f,
-          center = Offset(celestialInSkyX, celestialInSkyY),
+          topLeft = Offset(0f, horizonY),
+          size = Size(canvasW, canvasH - horizonY),
         )
-        // Oceano azzurro profondo
-        drawCircle(color = Color(0xFF1D4ED8), radius = earthR, center = Offset(celestialInSkyX, celestialInSkyY))
-        // Continenti verdi/ocra (Africa / Eurasia)
-        drawCircle(color = Color(0xFF15803D), radius = earthR * 0.55f, center = Offset(celestialInSkyX - earthR * 0.2f, celestialInSkyY - earthR * 0.15f))
-        drawCircle(color = Color(0xFFD97706), radius = earthR * 0.35f, center = Offset(celestialInSkyX + earthR * 0.3f, celestialInSkyY + earthR * 0.2f))
-        // Vortici di nuvole bianche
-        drawOval(
-          color = Color.White.copy(alpha = 0.75f),
-          topLeft = Offset(celestialInSkyX - earthR * 0.7f, celestialInSkyY - earthR * 0.35f),
-          size = Size(earthR * 1.4f, earthR * 0.35f),
-        )
-        drawOval(
-          color = Color.White.copy(alpha = 0.65f),
-          topLeft = Offset(celestialInSkyX - earthR * 0.5f, celestialInSkyY + earthR * 0.15f),
-          size = Size(earthR * 1.1f, earthR * 0.25f),
-        )
-      } else if (planetId.lowercase() == "jupiter") {
-        // 🪐 GIOVE COLOSSALE CHE DOMINA IL CIELO DI EUROPA
-        val jupR = 105f
-        drawCircle(color = Color(0xFFC2410C), radius = jupR, center = Offset(celestialInSkyX, celestialInSkyY))
-        // Fasce nuvolose animate zonate
-        for (b in -3..3) {
-          val bCol = if (b % 2 == 0) Color(0xFF78350F) else Color(0xFFD97706)
-          drawLine(
-            color = bCol.copy(alpha = 0.85f),
-            start = Offset(celestialInSkyX - jupR * 0.95f, celestialInSkyY + b * 24f),
-            end = Offset(celestialInSkyX + jupR * 0.95f, celestialInSkyY + b * 24f),
-            strokeWidth = 14f,
-          )
-        }
-        // Grande Macchia Rossa
-        drawOval(
-          color = Color(0xFFB91C1C),
-          topLeft = Offset(celestialInSkyX + jupR * 0.25f, celestialInSkyY + 18f),
-          size = Size(34f, 20f),
-        )
-      } else if (planetId.lowercase() == "mars") {
-        // Luna marziana Phobos che sfreccia nel cielo
-        drawCircle(color = Color(0xFF94A3B8), radius = 9f, center = Offset(celestialInSkyX, celestialInSkyY))
-        drawCircle(color = Color(0xFF475569), radius = 3.5f, center = Offset(celestialInSkyX - 2f, celestialInSkyY - 1f))
-      } else if (planetId.lowercase() == "saturn") {
-        // Saturno con anelli dorati inclinati
-        val satR = 54f
-        drawCircle(color = Color(0xFFD97706), radius = satR, center = Offset(celestialInSkyX, celestialInSkyY))
-        // Anelli dorati ellittici inclinati
-        rotate(degrees = -25f, pivot = Offset(celestialInSkyX, celestialInSkyY)) {
-          drawOval(
-            color = Color(0xFFFDE68A).copy(alpha = 0.75f),
-            topLeft = Offset(celestialInSkyX - satR * 2.1f, celestialInSkyY - satR * 0.45f),
-            size = Size(satR * 4.2f, satR * 0.9f),
-            style = Stroke(width = 8f),
-          )
-        }
-      }
-
-      // 1.4 Catene Montuose a 3 Livelli di Profondità (Parallasse Panoramico)
-      // Livello 1: Vette Lontane Monumentali (Distant Peaks)
-      val distantMountainPath = Path().apply {
-        moveTo(0f, horizonY)
-        for (x in 0..canvasW.toInt() step 30) {
-          val phase = (x + playerYawDeg * 2.8f) * 0.009f
-          val dH = (sin(phase) * 55f + cos(phase * 2.1f) * 28f + sin(phase * 4.3f) * 12f).coerceAtLeast(0f)
-          lineTo(x.toFloat(), horizonY - dH)
-        }
-        lineTo(canvasW, horizonY)
-        close()
-      }
-      drawPath(
-        path = distantMountainPath,
-        color = env.terrainSecondaryColor.copy(alpha = 0.50f),
-      )
-
-      // Livello 2: Colline Medie e Scarpate di Crateri (Mid Hills & Dunes)
-      val midHillsPath = Path().apply {
-        moveTo(0f, horizonY)
-        for (x in 0..canvasW.toInt() step 25) {
-          val phase = (x + playerYawDeg * 5.5f) * 0.016f
-          val mH = (sin(phase) * 32f + cos(phase * 2.8f) * 18f).coerceAtLeast(0f)
-          lineTo(x.toFloat(), horizonY - mH)
-        }
-        lineTo(canvasW, horizonY)
-        close()
-      }
-      drawPath(
-        path = midHillsPath,
-        color = env.terrainSecondaryColor.copy(alpha = 0.85f),
-      )
-
-      // Livello 3: Orizzonte Immediato Frastagliato
-      val nearHorizonPath = Path().apply {
-        moveTo(0f, horizonY)
-        for (x in 0..canvasW.toInt() step 20) {
-          val phase = (x + playerYawDeg * 9.5f) * 0.024f
-          val nH = (sin(phase) * 14f + cos(phase * 3.5f) * 8f).coerceAtLeast(0f)
-          lineTo(x.toFloat(), horizonY - nH)
-        }
-        lineTo(canvasW, horizonY)
-        close()
-      }
-      drawPath(
-        path = nearHorizonPath,
-        color = env.terrainSecondaryColor,
-      )
-
-      // =========================================================================
-      // 2. TERRENO SUPERFICIALE PROSPETTICO 3D NAVIGABILE A TESSERE
-      // =========================================================================
-      drawRect(
-        brush = Brush.verticalGradient(
-          colors = listOf(env.terrainSecondaryColor, env.terrainPrimaryColor),
-          startY = horizonY,
-          endY = canvasH,
-        ),
-        topLeft = Offset(0f, horizonY),
-        size = Size(canvasW, canvasH - horizonY),
-      )
 
       val yawRad = playerYawDeg * PI.toFloat() / 180f
       val cosYaw = cos(yawRad)
@@ -577,7 +662,7 @@ fun SurfaceFirstPersonViewer3D(
         drawLine(color = color, start = Offset(sX1, sY1), end = Offset(sX2, sY2), strokeWidth = strokeWidth)
       }
 
-      // 2.1 Griglia Prospettica Radiale e Longitudinale Dinamica del Suolo (Sposta e orienta con il giocatore)
+      // 2.1 Griglia Prospettica e Ondulazioni Naturali del Regolite (Sposta e orienta con il giocatore)
       val gridStep = 4.0f
       val snapZ = (playerZ / gridStep).toInt() * gridStep
       val snapX = (playerX / gridStep).toInt() * gridStep
@@ -587,16 +672,16 @@ fun SurfaceFirstPersonViewer3D(
         val wz = snapZ + zOffset * gridStep
         val distZ = abs(wz - playerZ)
         if (distZ < 65f) {
-          val alpha = (0.42f - distZ * 0.0055f).coerceIn(0.04f, 0.42f)
+          val alpha = (0.28f - distZ * 0.004f).coerceIn(0.03f, 0.28f)
           val isMajor = ((wz.roundToInt() % 16) == 0)
-          val lineColor = if (isMajor) CosmicCyan.copy(alpha = alpha * 1.35f) else env.rockColor.copy(alpha = alpha)
+          val lineColor = if (isMajor) env.rockColor.copy(alpha = alpha * 1.4f) else Color.Black.copy(alpha = alpha * 0.75f)
           drawWorldSegment(
             wX1 = playerX - 42f,
             wZ1 = wz,
             wX2 = playerX + 42f,
             wZ2 = wz,
             color = lineColor,
-            strokeWidth = if (isMajor) 2.2f else 1.1f,
+            strokeWidth = if (isMajor) 2.2f else 1.2f,
           )
         }
       }
@@ -606,9 +691,9 @@ fun SurfaceFirstPersonViewer3D(
         val wx = snapX + xOffset * gridStep
         val distX = abs(wx - playerX)
         if (distX < 42f) {
-          val alpha = (0.35f - distX * 0.0065f).coerceIn(0.04f, 0.35f)
+          val alpha = (0.22f - distX * 0.005f).coerceIn(0.02f, 0.22f)
           val isMajor = ((wx.roundToInt() % 16) == 0)
-          val lineColor = if (isMajor) CosmicCyan.copy(alpha = alpha * 1.35f) else env.rockColor.copy(alpha = alpha)
+          val lineColor = if (isMajor) env.rockColor.copy(alpha = alpha * 1.4f) else Color.Black.copy(alpha = alpha * 0.65f)
           drawWorldSegment(
             wX1 = wx,
             wZ1 = playerZ - 8f,
@@ -706,6 +791,21 @@ fun SurfaceFirstPersonViewer3D(
           }
           drawPath(sunHighlightPath, color = Color.White.copy(alpha = 0.25f))
           drawPath(rockPath, color = Color(0xFF1E293B), style = Stroke(width = max(1f, rScale * 0.06f)))
+        }
+      }
+
+      // 2.5 Particelle 3D di Polvere e Regolite sollevate dai passi dell'astronauta
+      dustParticles.forEach { p ->
+        val pScreen = projectWorldToScreen(p.x, p.z, p.y)
+        if (pScreen != null) {
+          val pProgress = (p.life / p.maxLife).coerceIn(0f, 1f)
+          val pAlpha = (1f - pProgress) * 0.75f
+          val pRadius = (2.4f * (1f - pProgress * 0.5f)).coerceIn(1f, 3.5f)
+          drawCircle(
+            color = env.rockColor.copy(alpha = pAlpha),
+            radius = pRadius,
+            center = pScreen,
+          )
         }
       }
 
@@ -1525,60 +1625,122 @@ fun SurfaceFirstPersonViewer3D(
         }
       }
 
-      // =========================================================================
-      // 7. STICK VIRTUALE ANALOGICO DI MOVIMENTO (IN BASSO A SINISTRA)
-      // =========================================================================
-      val stickBaseCenter = Offset(84f, canvasH - 84f)
-      val stickBaseRadius = 52f
-      drawCircle(color = SpaceVoid.copy(alpha = 0.70f), radius = stickBaseRadius, center = stickBaseCenter)
-      drawCircle(color = CosmicCyan.copy(alpha = 0.50f), radius = stickBaseRadius, center = stickBaseCenter, style = Stroke(width = 2f))
+      } // Fine blocco rotate(rollSway)
 
-      val stickKnobCenter = Offset(
-        stickBaseCenter.x + stickDeltaX * 34f,
-        stickBaseCenter.y + stickDeltaY * 34f,
+      // =========================================================================
+      // 7. VISIERA CASCO ASTRONAUTA EVA E TELEMETRIA A 360° (HELMET VISOR & HUD)
+      // =========================================================================
+      // 7.1 Vignettatura interna antiriflesso della visiera
+      val visorCornerR = 48f
+      drawRoundRect(
+        color = Color(0x44000000),
+        topLeft = Offset(-10f, -10f),
+        size = Size(canvasW + 20f, canvasH + 20f),
+        cornerRadius = CornerRadius(visorCornerR, visorCornerR),
+        style = Stroke(width = 16f),
       )
-      drawCircle(color = if (stickActive) CosmicAmber else CosmicCyan, radius = 22f, center = stickKnobCenter)
-      drawCircle(color = Color.White, radius = 7f, center = stickKnobCenter)
+
+      // 7.2 Arco di riflesso dorato in cima alla visiera
+      val reflectPath = Path().apply {
+        moveTo(canvasW * 0.15f, 18f)
+        cubicTo(canvasW * 0.35f, 6f, canvasW * 0.65f, 6f, canvasW * 0.85f, 18f)
+      }
+      drawPath(
+        path = reflectPath,
+        color = CosmicAmber.copy(alpha = 0.20f),
+        style = Stroke(width = 3.0f, cap = StrokeCap.Round),
+      )
+
+      // 7.3 Nastro Bussola a 360° in Cima alla Visiera
+      val compassY = 32f
+      val compassW = min(360f, canvasW * 0.42f)
+      val compassLeft = (canvasW - compassW) / 2f
+
+      drawRoundRect(
+        color = Color(0xCC070B16),
+        topLeft = Offset(compassLeft, compassY - 14f),
+        size = Size(compassW, 28f),
+        cornerRadius = CornerRadius(8f, 8f),
+      )
+      drawRoundRect(
+        color = CosmicCyan.copy(alpha = 0.55f),
+        topLeft = Offset(compassLeft, compassY - 14f),
+        size = Size(compassW, 28f),
+        cornerRadius = CornerRadius(8f, 8f),
+        style = Stroke(width = 1.2f),
+      )
+
+      val centerHeading = ((playerYawDeg % 360f) + 360f) % 360f
+      for (h in -4..4) {
+        val headingVal = (((centerHeading + h * 15f) % 360f) + 360f) % 360f
+        val tickX = canvasW * 0.5f + (h * 15f) * (compassW / 90f)
+        if (tickX in (compassLeft + 6f)..(compassLeft + compassW - 6f)) {
+          val isCardinal = headingVal.roundToInt() % 90 == 0
+          drawLine(
+            color = if (isCardinal) CosmicAmber else CosmicCyan.copy(alpha = 0.6f),
+            start = Offset(tickX, compassY - (if (isCardinal) 10f else 6f)),
+            end = Offset(tickX, compassY),
+            strokeWidth = if (isCardinal) 2.2f else 1.2f,
+          )
+
+          val label = when (headingVal.roundToInt()) {
+            0, 360 -> "N"
+            45 -> "NE"
+            90 -> "E"
+            135 -> "SE"
+            180 -> "S"
+            225 -> "SW"
+            270 -> "W"
+            315 -> "NW"
+            else -> "${headingVal.roundToInt()}°"
+          }
+          val meas = textMeasurer.measure(
+            label,
+            TextStyle(
+              fontFamily = FredokaFontFamily,
+              fontSize = if (isCardinal) 8.5.sp else 7.sp,
+              fontWeight = if (isCardinal) FontWeight.ExtraBold else FontWeight.Bold,
+              color = if (isCardinal) CosmicAmber else StarlightWhite.copy(alpha = 0.85f),
+            ),
+          )
+          drawText(meas, topLeft = Offset(tickX - meas.size.width / 2f, compassY + 2f))
+        }
+      }
+
+      // Mirino centrale fisso bussola
+      drawLine(
+        color = CosmicAmber,
+        start = Offset(canvasW * 0.5f, compassY - 12f),
+        end = Offset(canvasW * 0.5f, compassY + 12f),
+        strokeWidth = 2.4f,
+      )
+
+      // 7.4 Segnale Faro Astronave sulla Bussola
+      val bearingToShipDeg = ((atan2(-playerX, -playerZ) * 180f / PI.toFloat() + 360f) % 360f)
+      val relShipAngle = ((bearingToShipDeg - playerYawDeg + 540f) % 360f) - 180f
+      val shipBeaconX = (canvasW * 0.5f + relShipAngle * (compassW / 90f)).coerceIn(compassLeft + 12f, compassLeft + compassW - 12f)
+      drawCircle(
+        color = CosmicAmber,
+        radius = 4.5f,
+        center = Offset(shipBeaconX, compassY - 8f),
+      )
     }
 
-    // Touch Pad invisibile per lo Stick di Movimento in basso a sinistra
-    Box(
-      modifier = Modifier
-        .fillMaxSize()
-        .pointerInput(Unit) {
-          detectDragGestures(
-            onDragStart = { offset ->
-              val stickBaseX = 84f
-              val stickBaseY = size.height - 84f
-              val dx = offset.x - stickBaseX
-              val dy = offset.y - stickBaseY
-              if (dx * dx + dy * dy < 110f * 110f) {
-                stickActive = true
-                val dLen = sqrt(dx * dx + dy * dy)
-                stickDeltaX = (dx / max(1f, dLen)).coerceIn(-1f, 1f)
-                stickDeltaY = (dy / max(1f, dLen)).coerceIn(-1f, 1f)
-              }
-            },
-            onDrag = { change, dragAmount ->
-              if (stickActive) {
-                change.consume()
-                stickDeltaX = (stickDeltaX + dragAmount.x * 0.035f).coerceIn(-1f, 1f)
-                stickDeltaY = (stickDeltaY + dragAmount.y * 0.035f).coerceIn(-1f, 1f)
-              }
-            },
-            onDragEnd = {
-              stickActive = false
-              stickDeltaX = 0f
-              stickDeltaY = 0f
-            },
-            onDragCancel = {
-              stickActive = false
-              stickDeltaX = 0f
-              stickDeltaY = 0f
-            },
-          )
+    // Controller Pad per lo Sbarco e Movimento a Piedi (112dp)
+    if (!isInsideShip) {
+      SurfaceMovementControllerPad(
+        stickDeltaX = stickDeltaX,
+        stickDeltaY = stickDeltaY,
+        onDeltaChange = { dx, dy, active ->
+          stickDeltaX = dx
+          stickDeltaY = dy
+          stickActive = active
         },
-    )
+        modifier = Modifier
+          .align(Alignment.BottomStart)
+          .padding(start = 28.dp, bottom = 24.dp),
+      )
+    }
 
     // Pulsanti interattivi in sovraimpressione (Salto, Scansione/Raccolta, Sbarco e Fototeca NASA)
     SurfaceActionOverlay(
@@ -1803,6 +1965,319 @@ private fun SurfaceActionOverlay(
               softWrap = false,
             )
           }
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun SurfaceMovementControllerPad(
+  stickDeltaX: Float,
+  stickDeltaY: Float,
+  onDeltaChange: (Float, Float, Boolean) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  var controlMode by remember { mutableIntStateOf(0) } // 0: CLOCHE 3D, 1: D-PAD
+  val density = LocalDensity.current
+  val padBoxSizeDp = 112.dp
+  val padBoxPx = with(density) { padBoxSizeDp.toPx() }
+  val centerPx = padBoxPx / 2f
+  val maxRadiusPx = padBoxPx * 0.42f
+  val deadzonePx = with(density) { 5.dp.toPx() }
+
+  val isStickActive = abs(stickDeltaX) > 0.02f || abs(stickDeltaY) > 0.02f
+
+  fun updatePos(touchPos: Offset) {
+    val dx = touchPos.x - centerPx
+    val dy = touchPos.y - centerPx
+    val dist = hypot(dx, dy)
+    if (dist > deadzonePx) {
+      val norm = ((dist - deadzonePx) / (maxRadiusPx - deadzonePx)).coerceIn(0f, 1f)
+      val curved = (norm * norm * 0.70f + norm * 0.30f).coerceIn(0f, 1f)
+      val ang = atan2(dy, dx)
+      val sx = (cos(ang) * curved).coerceIn(-1f, 1f)
+      val sy = (sin(ang) * curved).coerceIn(-1f, 1f)
+      onDeltaChange(sx, sy, true)
+    } else {
+      onDeltaChange(0f, 0f, true)
+    }
+  }
+
+  fun resetPos() {
+    onDeltaChange(0f, 0f, false)
+  }
+
+  Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    // Selettore Rapido Modalità: [CLOCHE] vs [D-PAD]
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Surface(
+        onClick = { controlMode = 0 },
+        color = if (controlMode == 0) CosmicCyan.copy(alpha = 0.35f) else SpaceVoid.copy(alpha = 0.75f),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, if (controlMode == 0) CosmicCyan else Color.Transparent),
+        modifier = Modifier.height(20.dp),
+      ) {
+        Text(
+          text = "CLOCHE",
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+          color = if (controlMode == 0) StarlightWhite else StarlightWhite.copy(alpha = 0.6f),
+          modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+          maxLines = 1,
+          softWrap = false,
+        )
+      }
+      Surface(
+        onClick = { controlMode = 1 },
+        color = if (controlMode == 1) AuroraGreen.copy(alpha = 0.35f) else SpaceVoid.copy(alpha = 0.75f),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, if (controlMode == 1) AuroraGreen else Color.Transparent),
+        modifier = Modifier.height(20.dp),
+      ) {
+        Text(
+          text = "D-PAD",
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+          color = if (controlMode == 1) StarlightWhite else StarlightWhite.copy(alpha = 0.6f),
+          modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+          maxLines = 1,
+          softWrap = false,
+        )
+      }
+    }
+
+    if (controlMode == 0) {
+      // Cloche 3D Analogica con Ritorno a Molla (112dp)
+      Box(
+        modifier = Modifier
+          .size(padBoxSizeDp)
+          .background(Color(0xD90A1128), CircleShape)
+          .border(
+            2.dp,
+            Brush.radialGradient(
+              listOf(
+                if (isStickActive) CosmicAmber else CosmicCyan,
+                Color(0xFF14203D),
+              )
+            ),
+            CircleShape,
+          )
+          .pointerInput(Unit) {
+            detectTapGestures(
+              onPress = { offset ->
+                updatePos(offset)
+                tryAwaitRelease()
+                resetPos()
+              }
+            )
+          }
+          .pointerInput(Unit) {
+            detectDragGestures(
+              onDragStart = { offset -> updatePos(offset) },
+              onDragEnd = { resetPos() },
+              onDragCancel = { resetPos() },
+            ) { change, _ ->
+              change.consume()
+              updatePos(change.position)
+            }
+          }
+          .testTag("surface_movement_stick"),
+        contentAlignment = Alignment.Center,
+      ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+          val c = Offset(size.width / 2f, size.height / 2f)
+
+          // Cerchi concentrici al neon e reticolo
+          drawCircle(
+            color = CosmicCyan.copy(alpha = if (isStickActive) 0.65f else 0.25f),
+            radius = size.minDimension * 0.46f,
+            style = Stroke(width = if (isStickActive) 2.2f else 1.6f),
+          )
+          drawCircle(
+            color = CosmicCyan.copy(alpha = 0.16f),
+            radius = size.minDimension * 0.24f,
+            style = Stroke(width = 1f),
+          )
+          drawLine(
+            color = CosmicCyan.copy(alpha = 0.35f),
+            start = Offset(c.x - 10f, c.y),
+            end = Offset(c.x + 10f, c.y),
+            strokeWidth = 1.2f,
+          )
+          drawLine(
+            color = CosmicCyan.copy(alpha = 0.35f),
+            start = Offset(c.x, c.y - 10f),
+            end = Offset(c.x, c.y + 10f),
+            strokeWidth = 1.2f,
+          )
+
+          // Indicatori direzionali luminosi
+          val upColor = if (stickDeltaY < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+          val downColor = if (stickDeltaY > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+          val leftColor = if (stickDeltaX < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+          val rightColor = if (stickDeltaX > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+
+          drawLine(color = upColor, start = Offset(c.x, 6f), end = Offset(c.x, 16f), strokeWidth = if (stickDeltaY < -0.2f) 3f else 1.8f)
+          drawLine(color = downColor, start = Offset(c.x, size.height - 6f), end = Offset(c.x, size.height - 16f), strokeWidth = if (stickDeltaY > 0.2f) 3f else 1.8f)
+          drawLine(color = leftColor, start = Offset(6f, c.y), end = Offset(16f, c.y), strokeWidth = if (stickDeltaX < -0.2f) 3f else 1.8f)
+          drawLine(color = rightColor, start = Offset(size.width - 6f, c.y), end = Offset(size.width - 16f, c.y), strokeWidth = if (stickDeltaX > 0.2f) 3f else 1.8f)
+
+          // Raggio laser dinamico dal centro alla manopola
+          val knob = Offset(c.x + stickDeltaX * maxRadiusPx, c.y + stickDeltaY * maxRadiusPx)
+          if (isStickActive) {
+            drawLine(
+              color = CosmicCyan.copy(alpha = 0.70f),
+              start = c,
+              end = knob,
+              strokeWidth = 2.6f,
+            )
+          }
+
+          // Manopola 3D della cloche
+          drawCircle(
+            brush = Brush.radialGradient(
+              listOf(
+                if (isStickActive) CosmicAmber else Color(0xFFFFB703),
+                Color(0xFFE76F51),
+              )
+            ),
+            radius = 16.dp.toPx(),
+            center = knob,
+          )
+          drawCircle(
+            color = ComicInk,
+            radius = 16.dp.toPx(),
+            center = knob,
+            style = Stroke(width = 2.2f),
+          )
+          drawCircle(
+            color = StarlightWhite,
+            radius = 3.5.dp.toPx(),
+            center = Offset(knob.x - 3.5.dp.toPx(), knob.y - 3.5.dp.toPx()),
+          )
+        }
+      }
+    } else {
+      // D-Pad Tattico (112dp)
+      Box(
+        modifier = Modifier
+          .size(padBoxSizeDp)
+          .background(Color(0xD90A1128), RoundedCornerShape(16.dp))
+          .border(2.dp, Brush.radialGradient(listOf(AuroraGreen, Color(0xFF14203D))), RoundedCornerShape(16.dp))
+          .testTag("surface_movement_stick"),
+        contentAlignment = Alignment.Center,
+      ) {
+        // Tasto AVANTI
+        Surface(
+          color = if (stickDeltaY < -0.2f) CosmicAmber else SpaceVoid.copy(alpha = 0.8f),
+          shape = RoundedCornerShape(8.dp),
+          border = BorderStroke(1.2.dp, if (stickDeltaY < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+          modifier = Modifier
+            .align(Alignment.TopCenter)
+            .padding(top = 4.dp)
+            .size(width = 50.dp, height = 32.dp)
+            .pointerInput(Unit) {
+              detectTapGestures(
+                onPress = {
+                  onDeltaChange(0f, -0.85f, true)
+                  tryAwaitRelease()
+                  resetPos()
+                }
+              )
+            },
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Text("▲ AVANTI", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold), color = StarlightWhite, maxLines = 1, softWrap = false)
+          }
+        }
+
+        // Tasto INDIETRO
+        Surface(
+          color = if (stickDeltaY > 0.2f) CosmicAmber else SpaceVoid.copy(alpha = 0.8f),
+          shape = RoundedCornerShape(8.dp),
+          border = BorderStroke(1.2.dp, if (stickDeltaY > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+          modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 4.dp)
+            .size(width = 50.dp, height = 32.dp)
+            .pointerInput(Unit) {
+              detectTapGestures(
+                onPress = {
+                  onDeltaChange(0f, 0.85f, true)
+                  tryAwaitRelease()
+                  resetPos()
+                }
+              )
+            },
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Text("▼ RETRO", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold), color = StarlightWhite, maxLines = 1, softWrap = false)
+          }
+        }
+
+        // Tasto SX
+        Surface(
+          color = if (stickDeltaX < -0.2f) CosmicAmber else SpaceVoid.copy(alpha = 0.8f),
+          shape = RoundedCornerShape(8.dp),
+          border = BorderStroke(1.2.dp, if (stickDeltaX < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+          modifier = Modifier
+            .align(Alignment.CenterStart)
+            .padding(start = 4.dp)
+            .size(width = 38.dp, height = 40.dp)
+            .pointerInput(Unit) {
+              detectTapGestures(
+                onPress = {
+                  onDeltaChange(-0.85f, 0f, true)
+                  tryAwaitRelease()
+                  resetPos()
+                }
+              )
+            },
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Text("◀ SX", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite, maxLines = 1, softWrap = false)
+          }
+        }
+
+        // Tasto DX
+        Surface(
+          color = if (stickDeltaX > 0.2f) CosmicAmber else SpaceVoid.copy(alpha = 0.8f),
+          shape = RoundedCornerShape(8.dp),
+          border = BorderStroke(1.2.dp, if (stickDeltaX > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+          modifier = Modifier
+            .align(Alignment.CenterEnd)
+            .padding(end = 4.dp)
+            .size(width = 38.dp, height = 40.dp)
+            .pointerInput(Unit) {
+              detectTapGestures(
+                onPress = {
+                  onDeltaChange(0.85f, 0f, true)
+                  tryAwaitRelease()
+                  resetPos()
+                }
+              )
+            },
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Text("DX ▶", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite, maxLines = 1, softWrap = false)
+          }
+        }
+
+        // Centro D-Pad
+        Box(
+          modifier = Modifier
+            .size(20.dp)
+            .background(Color(0xFF0F1A35), CircleShape)
+            .border(1.dp, AuroraGreen.copy(alpha = 0.6f), CircleShape),
+          contentAlignment = Alignment.Center,
+        ) {
+          Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, tint = AuroraGreen, modifier = Modifier.size(12.dp))
         }
       }
     }

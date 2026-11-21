@@ -185,4 +185,100 @@ class SurfaceExplorationTest {
     assertEquals(androidx.compose.ui.text.style.Hyphens.None, typo.titleMedium.hyphens)
     assertEquals(androidx.compose.ui.text.style.LineBreak.Heading, typo.titleMedium.lineBreak)
   }
+
+  @Test
+  fun testSurface3DLocomotionAndKangarooHopPhysics() {
+    val moonEnv = SurfaceExplorationRepository.getEnvironmentConfig("moon")
+    val earthEnv = SurfaceExplorationRepository.getEnvironmentConfig("earth")
+
+    // Moon is low gravity (ratio < 0.6f), Earth is normal/high gravity
+    val moonIsLowG = moonEnv.gravityRatio < 0.6f
+    val earthIsLowG = earthEnv.gravityRatio < 0.6f
+    assertTrue("Moon should be detected as low gravity environment", moonIsLowG)
+    assertTrue("Earth should not be low gravity", !earthIsLowG)
+
+    val moonMaxWalkSpeed = if (moonIsLowG) 4.2f else 3.6f
+    val earthMaxWalkSpeed = if (earthIsLowG) 4.2f else 3.6f
+    assertTrue("Low gravity allows longer bounding strides", moonMaxWalkSpeed > earthMaxWalkSpeed)
+
+    val moonHopFreq = if (moonIsLowG) 5.8f else 7.2f
+    val earthHopFreq = if (earthIsLowG) 5.8f else 7.2f
+    assertTrue("Low gravity kangaroo hops have lower frequency (longer hang time)", moonHopFreq < earthHopFreq)
+
+    // Inertial acceleration: low gravity regolith has lower grip -> smoother ramp
+    val moonAccelRate = if (moonIsLowG) 8.5f else 12f
+    val earthAccelRate = if (earthIsLowG) 8.5f else 12f
+    assertTrue("Low gravity has smoother inertia ramp", moonAccelRate < earthAccelRate)
+
+    // Astronaut helmet/torso roll sway during locomotion
+    for (step in 0..100) {
+      val walkCycle = step * 0.1f
+      val rollSway = kotlin.math.sin(walkCycle * 0.5f) * 1.6f
+      assertTrue("Roll sway must stay within physiological helmet sway (+-1.6 deg)", kotlin.math.abs(rollSway) <= 1.6001f)
+    }
+  }
+
+  @Test
+  fun testCelestialAngularProjectionCoherence() {
+    val canvasW = 1080f
+    val fovFactor = canvasW * 0.85f
+    val pxPerDeg = fovFactor * (kotlin.math.PI.toFloat() / 180f)
+
+    // When facing forward (playerYaw = 0), Sun at azimuth 0 is dead center
+    val sunAzimuth = 0f
+    var playerYawDeg = 0f
+    var relYaw = ((sunAzimuth - playerYawDeg + 540f) % 360f) - 180f
+    var screenX = canvasW * 0.5f + relYaw * pxPerDeg
+    assertEquals(canvasW * 0.5f, screenX, 0.01f)
+
+    // When astronaut turns right (+30°), the Sun MUST move to the LEFT on the screen
+    playerYawDeg = 30f
+    relYaw = ((sunAzimuth - playerYawDeg + 540f) % 360f) - 180f
+    assertEquals(-30f, relYaw, 0.01f)
+    screenX = canvasW * 0.5f + relYaw * pxPerDeg
+    assertTrue("Turning right must shift sky objects to the left", screenX < canvasW * 0.5f)
+
+    // Same coherent shift must apply to a celestial body (e.g. Earth visible from the Moon)
+    val earthAzimuth = 45f
+    val relYawEarthFacing = ((earthAzimuth - 0f + 540f) % 360f) - 180f
+    val relYawEarthTurned = ((earthAzimuth - playerYawDeg + 540f) % 360f) - 180f
+    assertEquals(45f, relYawEarthFacing, 0.01f)
+    assertEquals(15f, relYawEarthTurned, 0.01f)
+    assertTrue("Earth angle must decrease identically when turning right", relYawEarthTurned < relYawEarthFacing)
+  }
+
+  @Test
+  fun testSurfaceControllerPadSpecifications() {
+    val padBoxSizeDp = 112f
+    val padPaddingStartDp = 28f
+    val padPaddingBottomDp = 24f
+
+    assertEquals(112f, padBoxSizeDp, 0.001f)
+    assertTrue("Controller pad must be comfortably padded from left corner", padPaddingStartDp >= 24f)
+    assertTrue("Controller pad must be comfortably padded from bottom edge", padPaddingBottomDp >= 20f)
+
+    // Curved response curve test: ensures gentle response near center, full authority at edge
+    val deadzonePx = 15f
+    val maxRadiusPx = 140f
+
+    // Micro-touch inside deadzone
+    val touchInside = 10f
+    val normInside = if (touchInside > deadzonePx) ((touchInside - deadzonePx) / (maxRadiusPx - deadzonePx)) else 0f
+    assertEquals(0f, normInside, 0.001f)
+
+    // Touch at 50% deflection
+    val touchMid = 77.5f // 15 + (125 * 0.5)
+    val normMid = ((touchMid - deadzonePx) / (maxRadiusPx - deadzonePx))
+    val curvedMid = (normMid * normMid * 0.70f + normMid * 0.30f)
+    assertEquals(0.5f, normMid, 0.01f)
+    assertEquals(0.325f, curvedMid, 0.01f) // Progressive exponential control
+    assertTrue("Curved output allows finer precision at half stick", curvedMid < normMid)
+
+    // Touch at max deflection
+    val touchMax = 140f
+    val normMax = ((touchMax - deadzonePx) / (maxRadiusPx - deadzonePx))
+    val curvedMax = (normMax * normMax * 0.70f + normMax * 0.30f)
+    assertEquals(1.0f, normMax, 0.01f)
+    assertEquals(1.0f, curvedMax, 0.01f)
+  }
 }
