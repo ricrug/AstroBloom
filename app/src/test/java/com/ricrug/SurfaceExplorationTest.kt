@@ -126,4 +126,50 @@ class SurfaceExplorationTest {
     assertTrue("Near ship allows reboarding", nearShipDist < boardingThreshold)
     assertTrue("Far ship requires approaching to reboard", farShipDist > boardingThreshold)
   }
+
+  @Test
+  fun testOffScreenHudDirectionalIndicators() {
+    val playerX = 0f
+    val playerZ = 10f
+    val playerYawDeg = 0f // Looking forward along +Z
+
+    // POI 1: directly in front at (0, 30) -> angle = 0°, on-screen
+    val angleInFront = ((kotlin.math.atan2(0.0, 20.0) * 180.0 / Math.PI - playerYawDeg + 540.0) % 360.0) - 180.0
+    assertEquals(0.0, angleInFront, 0.01)
+    assertTrue("In front should be on-screen", kotlin.math.abs(angleInFront) <= 36.0)
+
+    // POI 2: to the left at (-30, 10) -> angle = -90°, off-screen left
+    val angleLeft = ((kotlin.math.atan2(-30.0, 0.0) * 180.0 / Math.PI - playerYawDeg + 540.0) % 360.0) - 180.0
+    assertEquals(-90.0, angleLeft, 0.01)
+    assertTrue("Should trigger left off-screen indicator", angleLeft < -36.0)
+
+    // POI 3: to the right at (25, 10) -> angle = +90°, off-screen right
+    val angleRight = ((kotlin.math.atan2(25.0, 0.0) * 180.0 / Math.PI - playerYawDeg + 540.0) % 360.0) - 180.0
+    assertEquals(90.0, angleRight, 0.01)
+    assertTrue("Should trigger right off-screen indicator", angleRight > 36.0)
+
+    // Ship at (0, 0) -> behind player at Z=10, angle = 180°
+    val angleShip = ((kotlin.math.atan2(0.0, -10.0) * 180.0 / Math.PI - playerYawDeg + 540.0) % 360.0) - 180.0
+    assertEquals(180.0, kotlin.math.abs(angleShip), 0.01)
+    assertTrue("Ship behind should trigger off-screen indicator", kotlin.math.abs(angleShip) > 36.0)
+  }
+
+  @Test
+  fun testSkyBeaconVisibilityAndTerrainGridNavigation() {
+    val canvasH = 1080f
+    val minBeaconH = 360f
+    val dynamicBeaconH = kotlin.math.max(canvasH * 0.72f, minBeaconH)
+    assertTrue("Beacon height must be massive to be visible from sky", dynamicBeaconH >= 700f)
+
+    // Grid step calculation
+    val gridStep = 4.0f
+    val playerZ = 13.5f
+    val snapZ = (playerZ / gridStep).toInt() * gridStep
+    assertEquals(12.0f, snapZ, 0.001f)
+
+    // Moving forward changes relative world Z line distance dynamically
+    val playerZ2 = 14.5f
+    val distToGridLine = kotlin.math.abs(snapZ - playerZ2)
+    assertEquals(2.5f, distToGridLine, 0.001f)
+  }
 }

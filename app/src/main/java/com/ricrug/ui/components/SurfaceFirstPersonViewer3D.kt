@@ -73,11 +73,14 @@ import com.ricrug.ui.theme.StarlightWhite
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.math.sqrt
 
 /**
@@ -99,6 +102,32 @@ fun SurfaceFirstPersonViewer3D(
   val samples = remember(planetId) { SurfaceExplorationRepository.getSamplesForPlanet(planetId) }
   val collectedSampleIds = remember { mutableStateListOf<String>() }
   val discoveredPoiIds = remember { mutableStateListOf<String>() }
+
+  // Rocce e massi 3D sparsi proceduralmente sul terreno per dare orientamento e scala reale
+  val proceduralRocks = remember {
+    listOf(
+      Triple(-8f, 12f, 0.45f), Triple(10f, 15f, 0.65f), Triple(-15f, 22f, 0.85f), Triple(18f, 8f, 0.40f),
+      Triple(-5f, 28f, 0.70f), Triple(12f, 35f, 0.90f), Triple(-22f, 14f, 0.55f), Triple(25f, 26f, 0.80f),
+      Triple(-12f, -8f, 0.50f), Triple(14f, -12f, 0.60f), Triple(-20f, -18f, 0.75f), Triple(8f, -22f, 0.55f),
+      Triple(-30f, 32f, 1.10f), Triple(32f, 18f, 1.25f), Triple(-4f, 40f, 0.85f), Triple(16f, 44f, 0.95f),
+      Triple(-26f, 48f, 1.30f), Triple(28f, 42f, 1.15f), Triple(-10f, 55f, 1.40f), Triple(6f, 60f, 1.20f),
+      Triple(-35f, 10f, 0.80f), Triple(38f, -8f, 0.90f), Triple(-18f, -28f, 0.70f), Triple(22f, -32f, 0.85f)
+    )
+  }
+
+  // Crateri d'impatto volumetrici 3D sul suolo del pianeta
+  val proceduralCraters = remember {
+    listOf(
+      Triple(-14f, 20f, 3.2f),
+      Triple(16f, 28f, 4.5f),
+      Triple(-28f, 38f, 6.0f),
+      Triple(24f, 15f, 2.8f),
+      Triple(-8f, 45f, 5.2f),
+      Triple(30f, 50f, 7.5f),
+      Triple(-22f, -14f, 3.8f),
+      Triple(18f, -20f, 4.2f)
+    )
+  }
 
   // Stato sbarco: true se inizialmente a bordo sul portellone dell'astronave, false dopo essere scesi sul suolo
   var isInsideShip by remember(planetId) { mutableStateOf(true) }
@@ -298,7 +327,7 @@ fun SurfaceFirstPersonViewer3D(
       val horizonY = canvasH * 0.5f + playerPitchDeg * 7.5f
 
       // =========================================================================
-      // 1. SKYBOX & ATMOSFERA PLANETARIA REALISTICA
+      // 1. SKYBOX & PANORAMA PLANETARIO OLTRE L'ORIZZONTE
       // =========================================================================
       drawRect(
         brush = Brush.verticalGradient(
@@ -310,99 +339,181 @@ fun SurfaceFirstPersonViewer3D(
         size = Size(canvasW, max(1f, horizonY)),
       )
 
-      // Stelle visibili (Specialmente su corpi privi di atmosfera come Luna o Mercurio)
+      // 1.1 Campo Stellare Iper-Dettagliato (Nettamente visibile su corpi senza atmosfera)
       val starAlpha = when {
-        env.pressureAtm == 0f -> 0.85f // Spazio nero lunare
-        env.pressureAtm < 0.05f -> 0.35f // Marte
-        else -> 0.05f // Venere / Terra cielo coperto
+        env.pressureAtm == 0f -> 0.90f // Vuoto cosmico lunare o mercuriano
+        env.pressureAtm < 0.05f -> 0.45f // Atmosfera sottile marziana
+        else -> 0.10f // Venere / Terra
       }
       if (starAlpha > 0.08f) {
-        for (i in 0 until 55) {
-          val sx = ((i * 127 + (playerYawDeg * 4.5f).toInt()) % canvasW.toInt() + canvasW) % canvasW
-          val sy = ((i * 83 + 17) % (max(1f, horizonY) * 0.85f).toInt()).toFloat()
+        for (i in 0 until 80) {
+          val sx = ((i * 137 + (playerYawDeg * 5.2f).toInt()) % canvasW.toInt() + canvasW) % canvasW
+          val sy = ((i * 79 + 11) % (max(1f, horizonY) * 0.88f).toInt()).toFloat()
+          val isBright = i % 8 == 0
           drawCircle(
-            color = Color.White.copy(alpha = starAlpha * (0.6f + (i % 3) * 0.2f)),
-            radius = if (i % 7 == 0) 2.2f else 1.2f,
+            color = if (isBright) CosmicCyan.copy(alpha = starAlpha) else Color.White.copy(alpha = starAlpha * (0.5f + (i % 3) * 0.25f)),
+            radius = if (isBright) 2.6f else 1.2f,
             center = Offset(sx, sy),
           )
         }
       }
 
-      // Sole 3D dimensionato realisticamente per il pianeta
+      // 1.2 Sole 3D Proporzionato alla Vera Distanza Orbitale
       val sunYawRel = ((180f - playerYawDeg + 360f) % 360f) - 180f
       if (abs(sunYawRel) < 90f) {
         val sunX = canvasW * 0.5f + sunYawRel * (canvasW / 90f)
         val sunY = horizonY - 140f
-        val sunBaseR = 18f * env.sunScale
-        // Bagliore della corona solare
+        val sunBaseR = (22f * env.sunScale).coerceIn(8f, 95f)
+
+        // Corona Solare Radiante
         drawCircle(
           brush = Brush.radialGradient(
-            colors = listOf(Color(0xFFFFF9E6), CosmicAmber.copy(alpha = 0.45f), Color.Transparent),
+            colors = listOf(Color(0xFFFFFBEB), CosmicAmber.copy(alpha = 0.55f), Color.Transparent),
             center = Offset(sunX, sunY),
-            radius = sunBaseR * 2.8f,
+            radius = sunBaseR * 3.2f,
           ),
-          radius = sunBaseR * 2.8f,
+          radius = sunBaseR * 3.2f,
           center = Offset(sunX, sunY),
         )
         drawCircle(color = Color.White, radius = sunBaseR, center = Offset(sunX, sunY))
+
+        // Raggi solari su mondi senza atmosfera (Mercurio / Luna)
+        if (env.pressureAtm == 0f) {
+          for (ray in 0 until 6) {
+            val rAngle = (ray * 60f + simTimeSec * 4f) * PI.toFloat() / 180f
+            drawLine(
+              color = Color.White.copy(alpha = 0.35f),
+              start = Offset(sunX + cos(rAngle) * sunBaseR, sunY + sin(rAngle) * sunBaseR),
+              end = Offset(sunX + cos(rAngle) * sunBaseR * 2.2f, sunY + sin(rAngle) * sunBaseR * 2.2f),
+              strokeWidth = 2.0f,
+            )
+          }
+        }
       }
 
-      // Pianeta/Luna Visibile nel Cielo (es. la Terra vista dalla Luna, Phobos su Marte, Giove su Europa)
-      val celestialInSkyX = canvasW * 0.5f + (((playerYawDeg + 120f) % 360f) - 180f) * (canvasW / 90f)
-      val celestialInSkyY = horizonY - 170f
+      // 1.3 Corpi Celesti Monumentali Visibili nel Cielo
+      val celestialInSkyX = canvasW * 0.5f + (((playerYawDeg + 130f) % 360f) - 180f) * (canvasW / 90f)
+      val celestialInSkyY = horizonY - 185f
+
       if (planetId.lowercase() == "moon") {
-        // La Terra (The Blue Marble) visibile dalla Luna!
+        // 🌍 LA TERRA (THE BLUE MARBLE) GIGANTE DALLA LUNA
+        val earthR = 68f
+        // Alone atmosferico azzurro
         drawCircle(
-          color = Color(0xFF1E40AF),
-          radius = 32f,
+          brush = Brush.radialGradient(
+            colors = listOf(Color(0xFF60A5FA).copy(alpha = 0.6f), Color.Transparent),
+            center = Offset(celestialInSkyX, celestialInSkyY),
+            radius = earthR * 1.35f,
+          ),
+          radius = earthR * 1.35f,
           center = Offset(celestialInSkyX, celestialInSkyY),
         )
-        drawCircle(
-          color = Color(0xFF22C55E).copy(alpha = 0.7f),
-          radius = 16f,
-          center = Offset(celestialInSkyX - 8f, celestialInSkyY - 4f),
+        // Oceano azzurro profondo
+        drawCircle(color = Color(0xFF1D4ED8), radius = earthR, center = Offset(celestialInSkyX, celestialInSkyY))
+        // Continenti verdi/ocra (Africa / Eurasia)
+        drawCircle(color = Color(0xFF15803D), radius = earthR * 0.55f, center = Offset(celestialInSkyX - earthR * 0.2f, celestialInSkyY - earthR * 0.15f))
+        drawCircle(color = Color(0xFFD97706), radius = earthR * 0.35f, center = Offset(celestialInSkyX + earthR * 0.3f, celestialInSkyY + earthR * 0.2f))
+        // Vortici di nuvole bianche
+        drawOval(
+          color = Color.White.copy(alpha = 0.75f),
+          topLeft = Offset(celestialInSkyX - earthR * 0.7f, celestialInSkyY - earthR * 0.35f),
+          size = Size(earthR * 1.4f, earthR * 0.35f),
         )
-        drawCircle(
-          color = Color.White.copy(alpha = 0.5f),
-          radius = 34f,
-          center = Offset(celestialInSkyX, celestialInSkyY),
-          style = Stroke(width = 2.5f),
+        drawOval(
+          color = Color.White.copy(alpha = 0.65f),
+          topLeft = Offset(celestialInSkyX - earthR * 0.5f, celestialInSkyY + earthR * 0.15f),
+          size = Size(earthR * 1.1f, earthR * 0.25f),
         )
       } else if (planetId.lowercase() == "jupiter") {
-        // Giove gigante che sovrasta la luna Europa!
-        drawCircle(
-          color = Color(0xFFC2410C),
-          radius = 78f,
-          center = Offset(celestialInSkyX, celestialInSkyY),
-        )
-        for (b in -2..2) {
+        // 🪐 GIOVE COLOSSALE CHE DOMINA IL CIELO DI EUROPA
+        val jupR = 105f
+        drawCircle(color = Color(0xFFC2410C), radius = jupR, center = Offset(celestialInSkyX, celestialInSkyY))
+        // Fasce nuvolose animate zonate
+        for (b in -3..3) {
+          val bCol = if (b % 2 == 0) Color(0xFF78350F) else Color(0xFFD97706)
           drawLine(
-            color = Color(0xFF78350F).copy(alpha = 0.85f),
-            start = Offset(celestialInSkyX - 74f, celestialInSkyY + b * 18f),
-            end = Offset(celestialInSkyX + 74f, celestialInSkyY + b * 18f),
-            strokeWidth = 9f,
+            color = bCol.copy(alpha = 0.85f),
+            start = Offset(celestialInSkyX - jupR * 0.95f, celestialInSkyY + b * 24f),
+            end = Offset(celestialInSkyX + jupR * 0.95f, celestialInSkyY + b * 24f),
+            strokeWidth = 14f,
+          )
+        }
+        // Grande Macchia Rossa
+        drawOval(
+          color = Color(0xFFB91C1C),
+          topLeft = Offset(celestialInSkyX + jupR * 0.25f, celestialInSkyY + 18f),
+          size = Size(34f, 20f),
+        )
+      } else if (planetId.lowercase() == "mars") {
+        // Luna marziana Phobos che sfreccia nel cielo
+        drawCircle(color = Color(0xFF94A3B8), radius = 9f, center = Offset(celestialInSkyX, celestialInSkyY))
+        drawCircle(color = Color(0xFF475569), radius = 3.5f, center = Offset(celestialInSkyX - 2f, celestialInSkyY - 1f))
+      } else if (planetId.lowercase() == "saturn") {
+        // Saturno con anelli dorati inclinati
+        val satR = 54f
+        drawCircle(color = Color(0xFFD97706), radius = satR, center = Offset(celestialInSkyX, celestialInSkyY))
+        // Anelli dorati ellittici inclinati
+        rotate(degrees = -25f, pivot = Offset(celestialInSkyX, celestialInSkyY)) {
+          drawOval(
+            color = Color(0xFFFDE68A).copy(alpha = 0.75f),
+            topLeft = Offset(celestialInSkyX - satR * 2.1f, celestialInSkyY - satR * 0.45f),
+            size = Size(satR * 4.2f, satR * 0.9f),
+            style = Stroke(width = 8f),
           )
         }
       }
 
-      // Rilievi montuosi e scarpate all'orizzonte (Procedurali)
-      val mountainPath = Path().apply {
+      // 1.4 Catene Montuose a 3 Livelli di Profondità (Parallasse Panoramico)
+      // Livello 1: Vette Lontane Monumentali (Distant Peaks)
+      val distantMountainPath = Path().apply {
         moveTo(0f, horizonY)
-        for (x in 0..canvasW.toInt() step 40) {
-          val phase = (x + playerYawDeg * 6f) * 0.015f
-          val mH = (sin(phase) * 26f + cos(phase * 2.3f) * 14f).coerceAtLeast(-5f)
+        for (x in 0..canvasW.toInt() step 30) {
+          val phase = (x + playerYawDeg * 2.8f) * 0.009f
+          val dH = (sin(phase) * 55f + cos(phase * 2.1f) * 28f + sin(phase * 4.3f) * 12f).coerceAtLeast(0f)
+          lineTo(x.toFloat(), horizonY - dH)
+        }
+        lineTo(canvasW, horizonY)
+        close()
+      }
+      drawPath(
+        path = distantMountainPath,
+        color = env.terrainSecondaryColor.copy(alpha = 0.50f),
+      )
+
+      // Livello 2: Colline Medie e Scarpate di Crateri (Mid Hills & Dunes)
+      val midHillsPath = Path().apply {
+        moveTo(0f, horizonY)
+        for (x in 0..canvasW.toInt() step 25) {
+          val phase = (x + playerYawDeg * 5.5f) * 0.016f
+          val mH = (sin(phase) * 32f + cos(phase * 2.8f) * 18f).coerceAtLeast(0f)
           lineTo(x.toFloat(), horizonY - mH)
         }
         lineTo(canvasW, horizonY)
         close()
       }
       drawPath(
-        path = mountainPath,
-        color = env.terrainSecondaryColor.copy(alpha = 0.90f),
+        path = midHillsPath,
+        color = env.terrainSecondaryColor.copy(alpha = 0.85f),
+      )
+
+      // Livello 3: Orizzonte Immediato Frastagliato
+      val nearHorizonPath = Path().apply {
+        moveTo(0f, horizonY)
+        for (x in 0..canvasW.toInt() step 20) {
+          val phase = (x + playerYawDeg * 9.5f) * 0.024f
+          val nH = (sin(phase) * 14f + cos(phase * 3.5f) * 8f).coerceAtLeast(0f)
+          lineTo(x.toFloat(), horizonY - nH)
+        }
+        lineTo(canvasW, horizonY)
+        close()
+      }
+      drawPath(
+        path = nearHorizonPath,
+        color = env.terrainSecondaryColor,
       )
 
       // =========================================================================
-      // 2. TERRENO SUPERFICIALE PROSPETTICO 3D
+      // 2. TERRENO SUPERFICIALE PROSPETTICO 3D NAVIGABILE A TESSERE
       // =========================================================================
       drawRect(
         brush = Brush.verticalGradient(
@@ -414,38 +525,188 @@ fun SurfaceFirstPersonViewer3D(
         size = Size(canvasW, canvasH - horizonY),
       )
 
-      // Griglia prospettica e texture del suolo
       val yawRad = playerYawDeg * PI.toFloat() / 180f
       val cosYaw = cos(yawRad)
       val sinYaw = sin(yawRad)
 
-      // Disegno delle linee di fuga del terreno
-      for (zStep in 1..18) {
-        val depthMeters = zStep * 2.5f
-        val screenY = horizonY + (currentEyeY / depthMeters) * (canvasH * 0.7f)
-        if (screenY in horizonY..canvasH) {
-          drawLine(
-            color = env.rockColor.copy(alpha = (0.25f / zStep).coerceIn(0.04f, 0.4f)),
-            start = Offset(0f, screenY),
-            end = Offset(canvasW, screenY),
-            strokeWidth = 1.2f,
-          )
-        }
-      }
-
-      // Funzione helper per proiettare coordinate mondiali (X, Z) in pixel schermo 3D
+      // Proiezione Prospettica da Coordinate Mondiali (X, Z, Y) in Pixel Schermo
       fun projectWorldToScreen(worldX: Float, worldZ: Float, worldY: Float = 0f): Offset? {
         val relX = worldX - playerX
         val relZ = worldZ - playerZ
-        // Rotazione attorno all'asse Y del giocatore
         val camX = relX * cosYaw - relZ * sinYaw
         val camZ = relX * sinYaw + relZ * cosYaw
 
-        if (camZ <= 0.4f) return null // Dietro la telecamera
+        if (camZ <= 0.35f) return null
         val fovFactor = canvasW * 0.95f
         val screenX = canvasW * 0.5f + (camX / camZ) * fovFactor
         val screenY = horizonY + ((currentEyeY - worldY) / camZ) * fovFactor
         return Offset(screenX, screenY)
+      }
+
+      // Funzione di utilità per tracciare segmenti del terreno in coordinate mondiali con clipping frontale
+      fun drawWorldSegment(wX1: Float, wZ1: Float, wX2: Float, wZ2: Float, color: Color, strokeWidth: Float) {
+        val relX1 = wX1 - playerX
+        val relZ1 = wZ1 - playerZ
+        var camX1 = relX1 * cosYaw - relZ1 * sinYaw
+        var camZ1 = relX1 * sinYaw + relZ1 * cosYaw
+
+        val relX2 = wX2 - playerX
+        val relZ2 = wZ2 - playerZ
+        var camX2 = relX2 * cosYaw - relZ2 * sinYaw
+        var camZ2 = relX2 * sinYaw + relZ2 * cosYaw
+
+        val nearClip = 0.40f
+        if (camZ1 < nearClip && camZ2 < nearClip) return
+
+        if (camZ1 < nearClip) {
+          val t = (nearClip - camZ1) / (camZ2 - camZ1)
+          camX1 += t * (camX2 - camX1)
+          camZ1 = nearClip
+        } else if (camZ2 < nearClip) {
+          val t = (nearClip - camZ2) / (camZ1 - camZ2)
+          camX2 += t * (camX1 - camX2)
+          camZ2 = nearClip
+        }
+
+        val fovFactor = canvasW * 0.95f
+        val sX1 = canvasW * 0.5f + (camX1 / camZ1) * fovFactor
+        val sY1 = horizonY + (currentEyeY / camZ1) * fovFactor
+        val sX2 = canvasW * 0.5f + (camX2 / camZ2) * fovFactor
+        val sY2 = horizonY + (currentEyeY / camZ2) * fovFactor
+
+        drawLine(color = color, start = Offset(sX1, sY1), end = Offset(sX2, sY2), strokeWidth = strokeWidth)
+      }
+
+      // 2.1 Griglia Prospettica Radiale e Longitudinale Dinamica del Suolo (Sposta e orienta con il giocatore)
+      val gridStep = 4.0f
+      val snapZ = (playerZ / gridStep).toInt() * gridStep
+      val snapX = (playerX / gridStep).toInt() * gridStep
+
+      // Linee trasversali (World Z costante)
+      for (zOffset in -2..16) {
+        val wz = snapZ + zOffset * gridStep
+        val distZ = abs(wz - playerZ)
+        if (distZ < 65f) {
+          val alpha = (0.42f - distZ * 0.0055f).coerceIn(0.04f, 0.42f)
+          val isMajor = ((wz.roundToInt() % 16) == 0)
+          val lineColor = if (isMajor) CosmicCyan.copy(alpha = alpha * 1.35f) else env.rockColor.copy(alpha = alpha)
+          drawWorldSegment(
+            wX1 = playerX - 42f,
+            wZ1 = wz,
+            wX2 = playerX + 42f,
+            wZ2 = wz,
+            color = lineColor,
+            strokeWidth = if (isMajor) 2.2f else 1.1f,
+          )
+        }
+      }
+
+      // Linee longitudinali (World X costante)
+      for (xOffset in -10..10) {
+        val wx = snapX + xOffset * gridStep
+        val distX = abs(wx - playerX)
+        if (distX < 42f) {
+          val alpha = (0.35f - distX * 0.0065f).coerceIn(0.04f, 0.35f)
+          val isMajor = ((wx.roundToInt() % 16) == 0)
+          val lineColor = if (isMajor) CosmicCyan.copy(alpha = alpha * 1.35f) else env.rockColor.copy(alpha = alpha)
+          drawWorldSegment(
+            wX1 = wx,
+            wZ1 = playerZ - 8f,
+            wX2 = wx,
+            wZ2 = playerZ + 60f,
+            color = lineColor,
+            strokeWidth = if (isMajor) 2.0f else 1.0f,
+          )
+        }
+      }
+
+      // 2.2 Tracce di Cingoli del Rover e Orme di Stivali Impresse nel Terreno
+      // Tracce continue dei cingoli del Rover dal modulo astronave (0,0) verso l'esterno
+      for (step in 0 until 18) {
+        val tZ1 = 1.8f + step * 2.4f
+        val tZ2 = 1.8f + (step + 0.65f) * 2.4f
+        val curvedX1 = sin(tZ1 * 0.08f) * 3.5f
+        val curvedX2 = sin(tZ2 * 0.08f) * 3.5f
+        // Cingolo sinistro
+        drawWorldSegment(curvedX1 - 1.1f, tZ1, curvedX2 - 1.1f, tZ2, Color(0x7702050E), 3.2f)
+        // Cingolo destro
+        drawWorldSegment(curvedX1 + 1.1f, tZ1, curvedX2 + 1.1f, tZ2, Color(0x7702050E), 3.2f)
+      }
+
+      // Orme degli stivali dell'astronauta (EVA Bootprints) impresse nella polvere del regolite
+      for (b in 1..8) {
+        val bZ = 1.8f + b * 0.65f
+        val bX = if (b % 2 == 0) -0.35f else 0.35f
+        val bPos = projectWorldToScreen(bX, bZ, 0.01f)
+        val bDist = sqrt((bX - playerX) * (bX - playerX) + (bZ - playerZ) * (bZ - playerZ))
+        if (bPos != null && bDist > 0.4f) {
+          val bScale = (18f / bDist).coerceIn(2.5f, 18f)
+          drawOval(
+            color = Color(0x8802050E),
+            topLeft = Offset(bPos.x - bScale * 0.5f, bPos.y - bScale * 0.25f),
+            size = Size(bScale, bScale * 0.5f),
+          )
+        }
+      }
+
+      // 2.3 Crateri d'Impatto 3D Volumetrici sul Suolo
+      proceduralCraters.forEach { crater ->
+        val cPos = projectWorldToScreen(crater.first, crater.second, 0f)
+        val dist = sqrt((crater.first - playerX) * (crater.first - playerX) + (crater.second - playerZ) * (crater.second - playerZ))
+        if (cPos != null && dist > 1f) {
+          val crScale = (canvasW * 0.95f / dist * (crater.third * 0.22f)).coerceIn(4f, 180f)
+          // Bordo del cratere illuminato
+          drawOval(
+            color = env.terrainSecondaryColor.copy(alpha = 0.9f),
+            topLeft = Offset(cPos.x - crScale, cPos.y - crScale * 0.35f),
+            size = Size(crScale * 2f, crScale * 0.7f),
+          )
+          // Cavità centrale in ombra profonda
+          drawOval(
+            color = Color(0x8802050E),
+            topLeft = Offset(cPos.x - crScale * 0.8f, cPos.y - crScale * 0.25f),
+            size = Size(crScale * 1.6f, crScale * 0.5f),
+          )
+          drawOval(
+            color = env.rockColor.copy(alpha = 0.7f),
+            topLeft = Offset(cPos.x - crScale, cPos.y - crScale * 0.35f),
+            size = Size(crScale * 2f, crScale * 0.7f),
+            style = Stroke(width = max(1.5f, crScale * 0.05f)),
+          )
+        }
+      }
+
+      // 2.4 Massi e Rocce 3D Sparsi sul Terreno (Scalatura e orientamento prospettico)
+      proceduralRocks.forEach { rock ->
+        val rPos = projectWorldToScreen(rock.first, rock.second, 0f)
+        val dist = sqrt((rock.first - playerX) * (rock.first - playerX) + (rock.second - playerZ) * (rock.second - playerZ))
+        if (rPos != null && dist > 0.5f) {
+          val rScale = (canvasW * 0.95f / dist * (rock.third * 0.25f)).coerceIn(2.5f, 75f)
+          // Ombra proiettata del masso a terra
+          drawOval(
+            color = Color(0x6602050E),
+            topLeft = Offset(rPos.x - rScale * 1.1f, rPos.y),
+            size = Size(rScale * 2.2f, rScale * 0.6f),
+          )
+          // Sagoma poligonale sfaccettata del masso 3D
+          val rockPath = Path().apply {
+            moveTo(rPos.x - rScale * 0.9f, rPos.y)
+            lineTo(rPos.x - rScale * 0.4f, rPos.y - rScale * 1.2f)
+            lineTo(rPos.x + rScale * 0.6f, rPos.y - rScale * 1.0f)
+            lineTo(rPos.x + rScale * 1.0f, rPos.y)
+            close()
+          }
+          drawPath(rockPath, color = env.rockColor)
+          // Lato illuminato dal Sole
+          val sunHighlightPath = Path().apply {
+            moveTo(rPos.x - rScale * 0.4f, rPos.y - rScale * 1.2f)
+            lineTo(rPos.x + rScale * 0.6f, rPos.y - rScale * 1.0f)
+            lineTo(rPos.x + rScale * 0.2f, rPos.y - rScale * 0.4f)
+            close()
+          }
+          drawPath(sunHighlightPath, color = Color.White.copy(alpha = 0.25f))
+          drawPath(rockPath, color = Color(0xFF1E293B), style = Stroke(width = max(1f, rScale * 0.06f)))
+        }
       }
 
       // =========================================================================
@@ -696,63 +957,244 @@ fun SurfaceFirstPersonViewer3D(
       }
 
       // =========================================================================
-      // 4. PUNTI DI INTERESSE (POI) SUL SUOLO CON OLOGRÀMMA SEGNALATORE
+      // 4. PUNTI DI INTERESSE (POI) SUL SUOLO CON FARI OLOGRAFICI GIGANTI E MODELLI 3D
       // =========================================================================
       pois.forEach { poi ->
         val screenPos = projectWorldToScreen(poi.posX, poi.posZ, 0f)
         val dist = sqrt((poi.posX - playerX) * (poi.posX - playerX) + (poi.posZ - playerZ) * (poi.posZ - playerZ))
         if (screenPos != null && dist > 0.5f) {
-          val scale = (35f / dist).coerceIn(3f, 90f)
+          val scale = (35f / dist).coerceIn(3.5f, 95f)
 
-          // Fascio olografico verticale brillante che guida l'astronauta
-          val beamH = min(220f, scale * 4.5f)
+          // 4.1 Faro Olografico Gigante dal Suolo al Cielo (Sky Beacon Pillar)
+          // Altissimo e luminoso a qualsiasi distanza per non perdersi mai nel vuoto planetario!
+          val beaconH = max(canvasH * 0.72f, 360f)
+          val beaconTopY = screenPos.y - beaconH
+
+          // Alone diffuso del fascio
+          val beamThickness = (18f / sqrt(dist)).coerceIn(4f, 26f)
           drawLine(
             brush = Brush.verticalGradient(
-              colors = listOf(Color.Transparent, AuroraGreen.copy(alpha = 0.75f)),
-              startY = screenPos.y - beamH,
+              colors = listOf(Color.Transparent, AuroraGreen.copy(alpha = 0.85f)),
+              startY = beaconTopY,
               endY = screenPos.y,
             ),
-            start = Offset(screenPos.x, screenPos.y - beamH),
+            start = Offset(screenPos.x, beaconTopY),
             end = Offset(screenPos.x, screenPos.y),
-            strokeWidth = max(2f, scale * 0.12f),
+            strokeWidth = beamThickness,
+          )
+          // Nucleo luminoso bianco-azzurro concentrato
+          drawLine(
+            brush = Brush.verticalGradient(
+              colors = listOf(Color.Transparent, Color.White.copy(alpha = 0.95f)),
+              startY = beaconTopY,
+              endY = screenPos.y,
+            ),
+            start = Offset(screenPos.x, beaconTopY),
+            end = Offset(screenPos.x, screenPos.y),
+            strokeWidth = max(2f, beamThickness * 0.25f),
           )
 
-          // Icona o marcatore del POI
+          // Anelli energetici ascendenti lungo il fascio
+          for (ringIdx in 0..3) {
+            val ringPhase = (simTimeSec * 1.2f + ringIdx * 0.25f) % 1.0f
+            val ringY = screenPos.y - ringPhase * beaconH * 0.85f
+            val ringW = (32f / sqrt(dist)).coerceIn(8f, 55f) * (1f + ringPhase * 0.4f)
+            val ringAlpha = ((1f - ringPhase) * 0.85f).coerceIn(0.1f, 0.85f)
+            drawOval(
+              color = AuroraGreen.copy(alpha = ringAlpha),
+              topLeft = Offset(screenPos.x - ringW * 0.5f, ringY - 4f),
+              size = Size(ringW, 8f),
+              style = Stroke(width = 1.5f),
+            )
+          }
+
+          // Punto di contatto alla base al suolo con onde concentriche
           drawCircle(
-            color = AuroraGreen,
-            radius = max(4f, scale * 0.28f),
-            center = Offset(screenPos.x, screenPos.y - scale * 0.4f),
+            color = AuroraGreen.copy(alpha = 0.4f),
+            radius = max(8f, scale * 0.45f),
+            center = Offset(screenPos.x, screenPos.y),
           )
           drawCircle(
             color = Color.White,
-            radius = max(2f, scale * 0.14f),
-            center = Offset(screenPos.x, screenPos.y - scale * 0.4f),
+            radius = max(3f, scale * 0.18f),
+            center = Offset(screenPos.x, screenPos.y),
           )
 
-          // Etichetta olografica fluttuante se nel raggio di 25 metri
-          if (dist < 25f) {
-            val labelText = "${poi.name} • ${dist.roundToInt()}m"
-            val meas = textMeasurer.measure(
-              labelText,
-              TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AuroraGreen),
-            )
-            val pillW = meas.size.width + 12f
-            val pillH = meas.size.height + 6f
-            val pillTopLeft = Offset(screenPos.x - pillW / 2f, screenPos.y - beamH - pillH - 4f)
-            drawRoundRect(
-              color = Color(0xDD021008),
-              topLeft = pillTopLeft,
-              size = Size(pillW, pillH),
-              cornerRadius = CornerRadius(4f),
-            )
-            drawRoundRect(
-              color = AuroraGreen.copy(alpha = 0.8f),
-              topLeft = pillTopLeft,
-              size = Size(pillW, pillH),
-              cornerRadius = CornerRadius(4f),
-              style = Stroke(width = 1.2f),
-            )
-            drawText(meas, topLeft = Offset(pillTopLeft.x + 6f, pillTopLeft.y + 3f))
+          // 4.2 Badge Olografico Fluttuante (SEMPRE VISIBILE a qualsiasi distanza!)
+          val badgeDist = dist.roundToInt()
+          val badgeText = "🎯 ${poi.name.take(22)} • ${badgeDist}m"
+          val bMeas = textMeasurer.measure(
+            badgeText,
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AuroraGreen),
+          )
+          val pillW = bMeas.size.width + 16f
+          val pillH = bMeas.size.height + 8f
+          // Posizionato a metà faro o sopra l'oggetto per essere sempre leggibile
+          val pillY = (screenPos.y - min(beaconH * 0.55f, 150f)).coerceAtLeast(36f)
+          val pillTopLeft = Offset(screenPos.x - pillW / 2f, pillY)
+
+          drawRoundRect(
+            color = Color(0xF0021008),
+            topLeft = pillTopLeft,
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+          )
+          drawRoundRect(
+            color = AuroraGreen,
+            topLeft = pillTopLeft,
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+            style = Stroke(width = 1.4f),
+          )
+          drawText(bMeas, topLeft = Offset(pillTopLeft.x + 8f, pillTopLeft.y + 4f))
+
+          // 4.3 Modelli 3D specifici per POI al suolo (se entro 45 metri)
+          if (dist < 45f) {
+            when {
+              // A) Rover Perseverance & Drone Ingenuity (Marte)
+              poi.id.contains("perseverance") || poi.name.contains("Perseverance") -> {
+                val rovScale = (canvasW * 0.95f / dist * 0.65f).coerceIn(12f, 140f)
+                // 6 Ruote nere con mozzi dorati
+                val wheelOffsets = listOf(
+                  Offset(-rovScale * 0.6f, -rovScale * 0.1f),
+                  Offset(0f, -rovScale * 0.05f),
+                  Offset(rovScale * 0.6f, -rovScale * 0.1f),
+                  Offset(-rovScale * 0.7f, rovScale * 0.15f),
+                  Offset(0f, rovScale * 0.2f),
+                  Offset(rovScale * 0.7f, rovScale * 0.15f),
+                )
+                wheelOffsets.forEach { wOff ->
+                  drawCircle(color = Color(0xFF1E293B), radius = rovScale * 0.18f, center = Offset(screenPos.x + wOff.x, screenPos.y + wOff.y))
+                  drawCircle(color = CosmicAmber, radius = rovScale * 0.08f, center = Offset(screenPos.x + wOff.x, screenPos.y + wOff.y))
+                }
+                // Bracci di sospensione rocker-bogie
+                drawLine(
+                  color = Color(0xFF64748B),
+                  start = Offset(screenPos.x - rovScale * 0.6f, screenPos.y),
+                  end = Offset(screenPos.x + rovScale * 0.6f, screenPos.y),
+                  strokeWidth = 2.5f,
+                )
+                // Chassis centrale bianco termico
+                drawRoundRect(
+                  color = Color(0xFFF1F5F9),
+                  topLeft = Offset(screenPos.x - rovScale * 0.5f, screenPos.y - rovScale * 0.55f),
+                  size = Size(rovScale, rovScale * 0.45f),
+                  cornerRadius = CornerRadius(4f),
+                )
+                // Albero della telecamera Mastcam-Z
+                val mastTop = Offset(screenPos.x - rovScale * 0.2f, screenPos.y - rovScale * 0.95f)
+                drawLine(color = Color(0xFF334155), start = Offset(screenPos.x - rovScale * 0.2f, screenPos.y - rovScale * 0.55f), end = mastTop, strokeWidth = 3f)
+                // Testa della telecamera con due lenti binoculari
+                drawRoundRect(color = Color(0xFF0F172A), topLeft = Offset(mastTop.x - rovScale * 0.15f, mastTop.y - rovScale * 0.12f), size = Size(rovScale * 0.3f, rovScale * 0.14f), cornerRadius = CornerRadius(2f))
+                drawCircle(color = CosmicCyan, radius = rovScale * 0.04f, center = Offset(mastTop.x - rovScale * 0.07f, mastTop.y - rovScale * 0.05f))
+                drawCircle(color = CosmicCyan, radius = rovScale * 0.04f, center = Offset(mastTop.x + rovScale * 0.07f, mastTop.y - rovScale * 0.05f))
+                // Drone Ingenuity affiancato (a destra)
+                val ingX = screenPos.x + rovScale * 1.1f
+                val ingY = screenPos.y - rovScale * 0.1f
+                drawCircle(color = CosmicAmber, radius = rovScale * 0.10f, center = Offset(ingX, ingY)) // cubetto dorato
+                // 2 rotori coassiali in fibra di carbonio
+                drawLine(color = Color.White, start = Offset(ingX - rovScale * 0.22f, ingY - rovScale * 0.12f), end = Offset(ingX + rovScale * 0.22f, ingY - rovScale * 0.12f), strokeWidth = 1.5f)
+                drawLine(color = Color.White, start = Offset(ingX - rovScale * 0.22f, ingY - rovScale * 0.18f), end = Offset(ingX + rovScale * 0.22f, ingY - rovScale * 0.18f), strokeWidth = 1.5f)
+              }
+
+              // B) LEM Eagle & Bandiera Americana (Luna / Apollo 11)
+              poi.id.contains("apollo11") || poi.name.contains("Eagle") || poi.name.contains("Tranquility") -> {
+                val lemScale = (canvasW * 0.95f / dist * 0.75f).coerceIn(14f, 160f)
+                // 4 Zampe d'atterraggio dorate
+                val legEnds = listOf(
+                  Offset(screenPos.x - lemScale * 0.8f, screenPos.y + lemScale * 0.1f),
+                  Offset(screenPos.x + lemScale * 0.8f, screenPos.y + lemScale * 0.1f),
+                )
+                legEnds.forEach { lEnd ->
+                  drawLine(color = Color(0xFFF59E0B), start = Offset(screenPos.x, screenPos.y - lemScale * 0.3f), end = lEnd, strokeWidth = 3f)
+                  drawCircle(color = Color(0xFF78350F), radius = lemScale * 0.12f, center = lEnd)
+                }
+                // Stadio di discesa ottagonale dorato (Mylar foil)
+                drawRoundRect(
+                  brush = Brush.verticalGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309))),
+                  topLeft = Offset(screenPos.x - lemScale * 0.5f, screenPos.y - lemScale * 0.5f),
+                  size = Size(lemScale, lemScale * 0.35f),
+                  cornerRadius = CornerRadius(4f),
+                )
+                // Stadio di risalita grigio alluminio
+                val ascentTop = screenPos.y - lemScale * 0.9f
+                drawRoundRect(
+                  color = Color(0xFFCBD5E1),
+                  topLeft = Offset(screenPos.x - lemScale * 0.38f, ascentTop),
+                  size = Size(lemScale * 0.76f, lemScale * 0.42f),
+                  cornerRadius = CornerRadius(6f),
+                )
+                // Finestrini triangolari del LEM
+                drawCircle(color = CosmicCyan, radius = lemScale * 0.05f, center = Offset(screenPos.x - lemScale * 0.12f, ascentTop + lemScale * 0.15f))
+                drawCircle(color = CosmicCyan, radius = lemScale * 0.05f, center = Offset(screenPos.x + lemScale * 0.12f, ascentTop + lemScale * 0.15f))
+
+                // Bandiera Americana piantata nel regolite lunare (a sinistra)
+                val flagPoleBase = Offset(screenPos.x - lemScale * 1.1f, screenPos.y)
+                val flagPoleTop = Offset(screenPos.x - lemScale * 1.1f, screenPos.y - lemScale * 0.85f)
+                drawLine(color = Color.White, start = flagPoleBase, end = flagPoleTop, strokeWidth = 2.5f)
+                // Traversa orizzontale superiore
+                val flagBarEnd = Offset(flagPoleTop.x + lemScale * 0.35f, flagPoleTop.y)
+                drawLine(color = Color.White, start = flagPoleTop, end = flagBarEnd, strokeWidth = 1.8f)
+                // Drappo della bandiera a strisce
+                val flagW = lemScale * 0.35f
+                val flagH = lemScale * 0.24f
+                drawRect(color = Color(0xFFDC2626), topLeft = flagPoleTop, size = Size(flagW, flagH))
+                drawRect(color = Color.White, topLeft = Offset(flagPoleTop.x, flagPoleTop.y + flagH * 0.33f), size = Size(flagW, flagH * 0.33f))
+                drawRect(color = Color(0xFF1D4ED8), topLeft = flagPoleTop, size = Size(flagW * 0.45f, flagH * 0.55f))
+              }
+
+              // C) Sonda Storica Venera 13 / Huygens
+              poi.id.contains("venera") || poi.id.contains("huygens") || poi.name.contains("Venera") || poi.name.contains("Huygens") -> {
+                val probeScale = (canvasW * 0.95f / dist * 0.6f).coerceIn(10f, 130f)
+                // Scudo aerodinamico circolare alla base
+                drawOval(
+                  color = Color(0xFF64748B),
+                  topLeft = Offset(screenPos.x - probeScale * 0.6f, screenPos.y - probeScale * 0.15f),
+                  size = Size(probeScale * 1.2f, probeScale * 0.3f),
+                )
+                // Corpo sferico a fungo
+                drawCircle(
+                  brush = Brush.verticalGradient(listOf(Color(0xFFE2E8F0), Color(0xFF475569))),
+                  radius = probeScale * 0.35f,
+                  center = Offset(screenPos.x, screenPos.y - probeScale * 0.4f),
+                )
+                // Disco antenna superiore
+                drawOval(
+                  color = Color(0xFF94A3B8),
+                  topLeft = Offset(screenPos.x - probeScale * 0.35f, screenPos.y - probeScale * 0.85f),
+                  size = Size(probeScale * 0.7f, probeScale * 0.15f),
+                )
+                drawLine(color = Color.White, start = Offset(screenPos.x, screenPos.y - probeScale * 0.75f), end = Offset(screenPos.x, screenPos.y - probeScale * 1.05f), strokeWidth = 2f)
+              }
+
+              // D) Crio-Geyser di Vapore d'Acqua (Europa / Giove)
+              poi.id.contains("geyser") || poi.name.contains("Geyser") -> {
+                val gScale = (canvasW * 0.95f / dist * 0.7f).coerceIn(12f, 150f)
+                // Fessura nel ghiaccio azzurro
+                drawOval(color = Color(0xFF0284C7), topLeft = Offset(screenPos.x - gScale * 0.6f, screenPos.y - gScale * 0.15f), size = Size(gScale * 1.2f, gScale * 0.3f))
+                // Colonna di particelle di vapore che zampilla
+                for (p in 0..7) {
+                  val pPhase = (simTimeSec * 2.5f + p * 0.125f) % 1.0f
+                  val pY = screenPos.y - pPhase * gScale * 2.2f
+                  val pX = screenPos.x + sin(simTimeSec * 4f + p) * gScale * 0.25f
+                  val pR = (gScale * 0.15f) * (1f + pPhase * 1.5f)
+                  drawCircle(color = Color.White.copy(alpha = (1f - pPhase) * 0.8f), radius = pR, center = Offset(pX, pY))
+                }
+              }
+
+              // E) Monoliti o Vette Rocciose per formazioni naturali
+              else -> {
+                val natScale = (canvasW * 0.95f / dist * 0.8f).coerceIn(14f, 160f)
+                val peakPath = Path().apply {
+                  moveTo(screenPos.x - natScale * 0.6f, screenPos.y)
+                  lineTo(screenPos.x, screenPos.y - natScale * 1.1f)
+                  lineTo(screenPos.x + natScale * 0.6f, screenPos.y)
+                  close()
+                }
+                drawPath(peakPath, color = env.rockColor)
+                drawPath(peakPath, color = Color.White.copy(alpha = 0.35f), style = Stroke(width = 2f))
+              }
+            }
           }
         }
       }
@@ -858,7 +1300,18 @@ fun SurfaceFirstPersonViewer3D(
       val angleToLander = ((atan2(-playerX.toDouble(), -playerZ.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
       if (abs(angleToLander) < 45.0) {
         val landerMarkerX = compassCenter.x + (angleToLander.toFloat() / 45f) * compassHalfW
-        drawCircle(color = AuroraGreen, radius = 3.5f, center = Offset(landerMarkerX, compassCenter.y - 10f))
+        drawCircle(color = CosmicAmber, radius = 4f, center = Offset(landerMarkerX, compassCenter.y - 10f))
+      }
+
+      // Indicatori Direzione POI sulla bussola
+      pois.forEach { poi ->
+        val dx = poi.posX - playerX
+        val dz = poi.posZ - playerZ
+        val angleToPoi = ((atan2(dx.toDouble(), dz.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
+        if (abs(angleToPoi) < 45.0) {
+          val poiMarkerX = compassCenter.x + (angleToPoi.toFloat() / 45f) * compassHalfW
+          drawCircle(color = AuroraGreen, radius = 3.2f, center = Offset(poiMarkerX, compassCenter.y - 10f))
+        }
       }
 
       // 6.2 Pannello Telemetria Ambientale Realistica (In alto a sinistra)
@@ -997,6 +1450,79 @@ fun SurfaceFirstPersonViewer3D(
         drawRoundRect(color = CosmicAmber, topLeft = bTopLeft, size = Size(bW, bH), cornerRadius = CornerRadius(6f), style = Stroke(width = 1.2f))
         drawText(bMeas, topLeft = Offset(bTopLeft.x + 9f, bTopLeft.y + 3f))
         drawText(sMeas, topLeft = Offset(bTopLeft.x + 9f, bTopLeft.y + bMeas.size.height + 3f))
+      }
+
+      // 6.5 Indicatori Direzionali Off-Screen sulla Visiera per Astronave e POI
+      // Calcola l'orientamento relativo (-180°..+180°) rispetto alla linea dello sguardo
+      var leftStackCount = 0
+      var rightStackCount = 0
+
+      // A) Indicatore Off-Screen dell'Astronave AstroBloom-I
+      if (!isInsideShip && shipDist > 4.2f) {
+        val angleToShip = ((atan2(-playerX.toDouble(), -playerZ.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
+        if (abs(angleToShip) > 36.0) {
+          val isLeft = angleToShip < 0
+          val text = if (isLeft) "◀ 🚀 NAVE • ${shipDist.roundToInt()}m" else "🚀 NAVE • ${shipDist.roundToInt()}m ▶"
+          val meas = textMeasurer.measure(
+            text,
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CosmicAmber),
+          )
+          val pillW = meas.size.width + 16f
+          val pillH = meas.size.height + 8f
+          val pillX = if (isLeft) 28f else canvasW - 28f - pillW
+          val pillY = canvasH * 0.42f + (if (isLeft) leftStackCount++ else rightStackCount++) * (pillH + 8f)
+
+          drawRoundRect(
+            color = Color(0xEE1E1303),
+            topLeft = Offset(pillX, pillY),
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+          )
+          drawRoundRect(
+            color = CosmicAmber,
+            topLeft = Offset(pillX, pillY),
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+            style = Stroke(width = 1.4f),
+          )
+          drawText(meas, topLeft = Offset(pillX + 8f, pillY + 4f))
+        }
+      }
+
+      // B) Indicatori Off-Screen dei POI
+      pois.forEach { poi ->
+        val dx = poi.posX - playerX
+        val dz = poi.posZ - playerZ
+        val dist = sqrt(dx * dx + dz * dz)
+        val angleToPoi = ((atan2(dx.toDouble(), dz.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
+        if (abs(angleToPoi) > 36.0 && (leftStackCount < 4 || rightStackCount < 4)) {
+          val isLeft = angleToPoi < 0
+          val shortName = poi.name.split(" ").take(2).joinToString(" ").take(14)
+          val text = if (isLeft) "◀ 🎯 $shortName • ${dist.roundToInt()}m" else "🎯 $shortName • ${dist.roundToInt()}m ▶"
+          val meas = textMeasurer.measure(
+            text,
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = AuroraGreen),
+          )
+          val pillW = meas.size.width + 14f
+          val pillH = meas.size.height + 7f
+          val pillX = if (isLeft) 28f else canvasW - 28f - pillW
+          val pillY = canvasH * 0.42f + (if (isLeft) leftStackCount++ else rightStackCount++) * (pillH + 8f)
+
+          drawRoundRect(
+            color = Color(0xEE021008),
+            topLeft = Offset(pillX, pillY),
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+          )
+          drawRoundRect(
+            color = AuroraGreen,
+            topLeft = Offset(pillX, pillY),
+            size = Size(pillW, pillH),
+            cornerRadius = CornerRadius(6f),
+            style = Stroke(width = 1.3f),
+          )
+          drawText(meas, topLeft = Offset(pillX + 7f, pillY + 3.5f))
+        }
       }
 
       // =========================================================================
