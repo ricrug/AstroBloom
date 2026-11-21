@@ -952,32 +952,36 @@ fun FirstPersonFlightSimulator3D(
       // ==========================================================
       // 🛰️ HUD TATTICO E STRUMENTI DI VOLO SUL PARABREZZA
       // ==========================================================
+      // ==========================================================
+      // 🛰️ HUD TATTICO E STRUMENTI DI VOLO SUL PARABREZZA (SCALA 2X ULTRA-LEGGIBILE)
+      // ==========================================================
       // Colori HUD ad alta visibilità con doppio strato anti-abbagliamento (Anti-Glare Dark Shadow)
       val isTargetLocked = autopilotTargetId != null
       val hudPrimary = if (isTargetLocked) AuroraGreen else CosmicCyan
-      val hudShadow = Color(0xDD020612) // Ombra scura profonda per contrasto assoluto contro il Sole, stelle e pianeti
+      val hudShadow = Color(0xEE020612) // Ombra scura profonda e densa per contrasto assoluto contro il Sole, stelle e pianeti
 
-      // 1. Bussola Stellare / Azimuth Heading Ribbon in alto
+      // 1. Bussola Stellare / Azimuth Heading Ribbon in alto (Raddoppiata: span 440px, font 12.5sp)
       val headingDeg = ((atan2(shipForward.z.toDouble(), shipForward.x.toDouble()) * 180.0 / PI + 360.0) % 360.0).roundToInt()
-      val compassCenter = Offset(center.x, 34f)
-      val compassHalfW = 120f
+      val compassCenter = Offset(center.x, 38f)
+      val compassHalfW = 220f
       // Fondo scuro anti-abbagliamento per il nastro bussola
       drawRoundRect(
-        color = Color(0xB8030714),
-        topLeft = Offset(compassCenter.x - compassHalfW - 8f, compassCenter.y - 13f),
-        size = Size((compassHalfW + 8f) * 2f, 26f),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
+        color = Color(0xC8030714),
+        topLeft = Offset(compassCenter.x - compassHalfW - 14f, compassCenter.y - 18f),
+        size = Size((compassHalfW + 14f) * 2f, 38f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
       )
-      drawLine(color = hudShadow, start = Offset(compassCenter.x - compassHalfW, compassCenter.y), end = Offset(compassCenter.x + compassHalfW, compassCenter.y), strokeWidth = 3.2f)
-      drawLine(color = hudPrimary.copy(alpha = 0.85f), start = Offset(compassCenter.x - compassHalfW, compassCenter.y), end = Offset(compassCenter.x + compassHalfW, compassCenter.y), strokeWidth = 1.6f)
-      // Ticks della bussola
-      for (offset in -4..4) {
+      drawLine(color = hudShadow, start = Offset(compassCenter.x - compassHalfW, compassCenter.y), end = Offset(compassCenter.x + compassHalfW, compassCenter.y), strokeWidth = 5.0f)
+      drawLine(color = hudPrimary.copy(alpha = 0.85f), start = Offset(compassCenter.x - compassHalfW, compassCenter.y), end = Offset(compassCenter.x + compassHalfW, compassCenter.y), strokeWidth = 2.4f)
+      // Ticks della bussola (spaziati a 44px)
+      for (offset in -5..5) {
         val tickDeg = (headingDeg + offset * 10 + 360) % 360
-        val tickX = compassCenter.x + offset * 26f
-        val tickH = if (tickDeg % 30 == 0) 10f else 5f
-        drawLine(color = hudShadow, start = Offset(tickX, compassCenter.y - tickH), end = Offset(tickX, compassCenter.y), strokeWidth = 3f)
-        drawLine(color = if (tickDeg % 30 == 0) hudPrimary else hudPrimary.copy(alpha = 0.65f), start = Offset(tickX, compassCenter.y - tickH), end = Offset(tickX, compassCenter.y), strokeWidth = 1.6f)
-        if (tickDeg % 30 == 0) {
+        val tickX = compassCenter.x + offset * 44f
+        val isMajor = tickDeg % 30 == 0
+        val tickH = if (isMajor) 16f else 8f
+        drawLine(color = hudShadow, start = Offset(tickX, compassCenter.y - tickH), end = Offset(tickX, compassCenter.y), strokeWidth = 4.5f)
+        drawLine(color = if (isMajor) hudPrimary else hudPrimary.copy(alpha = 0.65f), start = Offset(tickX, compassCenter.y - tickH), end = Offset(tickX, compassCenter.y), strokeWidth = 2.4f)
+        if (isMajor) {
           val headingLabel = when (tickDeg) {
             0 -> "E"
             90 -> "S"
@@ -987,50 +991,50 @@ fun FirstPersonFlightSimulator3D(
           }
           val txt = textMeasurer.measure(
             headingLabel,
-            TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (tickDeg % 90 == 0) CosmicAmber else hudPrimary),
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = if (tickDeg % 90 == 0) CosmicAmber else hudPrimary),
           )
-          drawText(txt, topLeft = Offset(tickX - txt.size.width / 2f, compassCenter.y + 2f))
+          drawText(txt, topLeft = Offset(tickX - txt.size.width / 2f, compassCenter.y + 3f))
         }
       }
       // Indicatore centrale prua
-      drawCircle(color = hudShadow, radius = 4.5f, center = Offset(compassCenter.x, compassCenter.y - 1f))
-      drawCircle(color = CosmicAmber, radius = 3f, center = Offset(compassCenter.x, compassCenter.y - 1f))
-      drawCircle(color = Color.White, radius = 1.2f, center = Offset(compassCenter.x, compassCenter.y - 1f))
+      drawCircle(color = hudShadow, radius = 6.5f, center = Offset(compassCenter.x, compassCenter.y - 1f))
+      drawCircle(color = CosmicAmber, radius = 4.5f, center = Offset(compassCenter.x, compassCenter.y - 1f))
+      drawCircle(color = Color.White, radius = 2.0f, center = Offset(compassCenter.x, compassCenter.y - 1f))
 
-      // 2. Mirino Centrale da Caccia Spaziale (Collimator Reticle & Pipper)
-      val reticleR = 26f
-      val innerBoresightR = 8.5f
+      // 2. Mirino Centrale da Caccia Spaziale (Collimator Reticle & Pipper - Raddoppiato: R=52f, Boresight=17f)
+      val reticleR = 52f
+      val innerBoresightR = 17f
 
       // Anello esterno del collimatore con contrasto scuro anti-riverbero
-      drawCircle(color = hudShadow, radius = reticleR, center = center, style = Stroke(width = 4.4f))
-      drawCircle(color = hudPrimary, radius = reticleR, center = center, style = Stroke(width = 2.0f))
+      drawCircle(color = hudShadow, radius = reticleR, center = center, style = Stroke(width = 6.5f))
+      drawCircle(color = hudPrimary, radius = reticleR, center = center, style = Stroke(width = 3.2f))
 
       // Anello interno di collimazione
-      drawCircle(color = hudShadow, radius = innerBoresightR, center = center, style = Stroke(width = 3.2f))
-      drawCircle(color = hudPrimary.copy(alpha = 0.85f), radius = innerBoresightR, center = center, style = Stroke(width = 1.4f))
+      drawCircle(color = hudShadow, radius = innerBoresightR, center = center, style = Stroke(width = 4.8f))
+      drawCircle(color = hudPrimary.copy(alpha = 0.85f), radius = innerBoresightR, center = center, style = Stroke(width = 2.2f))
 
       // Punto focale centrale (Triplo strato ad altissima visibilità)
-      drawCircle(color = hudShadow, radius = 5.2f, center = center)
-      drawCircle(color = if (isTargetLocked) AuroraGreen else CosmicAmber, radius = 3.6f, center = center)
-      drawCircle(color = Color.White, radius = 1.6f, center = center)
+      drawCircle(color = hudShadow, radius = 9.0f, center = center)
+      drawCircle(color = if (isTargetLocked) AuroraGreen else CosmicAmber, radius = 6.0f, center = center)
+      drawCircle(color = Color.White, radius = 2.6f, center = center)
 
-      // 4 Tacche Cardinali esterne (Top, Bottom, Left, Right)
+      // 4 Tacche Cardinali esterne (Top, Bottom, Left, Right - Raddoppiate in lunghezza e spessore)
       // Top
-      drawLine(color = hudShadow, start = Offset(center.x, center.y - reticleR - 3f), end = Offset(center.x, center.y - reticleR - 12f), strokeWidth = 4.2f)
-      drawLine(color = hudPrimary, start = Offset(center.x, center.y - reticleR - 3f), end = Offset(center.x, center.y - reticleR - 12f), strokeWidth = 2.2f)
+      drawLine(color = hudShadow, start = Offset(center.x, center.y - reticleR - 6f), end = Offset(center.x, center.y - reticleR - 24f), strokeWidth = 6.0f)
+      drawLine(color = hudPrimary, start = Offset(center.x, center.y - reticleR - 6f), end = Offset(center.x, center.y - reticleR - 24f), strokeWidth = 3.2f)
       // Bottom
-      drawLine(color = hudShadow, start = Offset(center.x, center.y + reticleR + 3f), end = Offset(center.x, center.y + reticleR + 12f), strokeWidth = 4.2f)
-      drawLine(color = hudPrimary, start = Offset(center.x, center.y + reticleR + 3f), end = Offset(center.x, center.y + reticleR + 12f), strokeWidth = 2.2f)
+      drawLine(color = hudShadow, start = Offset(center.x, center.y + reticleR + 6f), end = Offset(center.x, center.y + reticleR + 24f), strokeWidth = 6.0f)
+      drawLine(color = hudPrimary, start = Offset(center.x, center.y + reticleR + 6f), end = Offset(center.x, center.y + reticleR + 24f), strokeWidth = 3.2f)
       // Left
-      drawLine(color = hudShadow, start = Offset(center.x - reticleR - 3f, center.y), end = Offset(center.x - reticleR - 12f, center.y), strokeWidth = 4.2f)
-      drawLine(color = hudPrimary, start = Offset(center.x - reticleR - 3f, center.y), end = Offset(center.x - reticleR - 12f, center.y), strokeWidth = 2.2f)
+      drawLine(color = hudShadow, start = Offset(center.x - reticleR - 6f, center.y), end = Offset(center.x - reticleR - 24f, center.y), strokeWidth = 6.0f)
+      drawLine(color = hudPrimary, start = Offset(center.x - reticleR - 6f, center.y), end = Offset(center.x - reticleR - 24f, center.y), strokeWidth = 3.2f)
       // Right
-      drawLine(color = hudShadow, start = Offset(center.x + reticleR + 3f, center.y), end = Offset(center.x + reticleR + 12f, center.y), strokeWidth = 4.2f)
-      drawLine(color = hudPrimary, start = Offset(center.x + reticleR + 3f, center.y), end = Offset(center.x + reticleR + 12f, center.y), strokeWidth = 2.2f)
+      drawLine(color = hudShadow, start = Offset(center.x + reticleR + 6f, center.y), end = Offset(center.x + reticleR + 24f, center.y), strokeWidth = 6.0f)
+      drawLine(color = hudPrimary, start = Offset(center.x + reticleR + 6f, center.y), end = Offset(center.x + reticleR + 24f, center.y), strokeWidth = 3.2f)
 
-      // 4 Bracket Angolari Tattici di Puntamento (Corner Framing Brackets)
-      val bracketDist = 38f
-      val bracketLen = 9f
+      // 4 Bracket Angolari Tattici di Puntamento (Corner Framing Brackets - Dist=76f, Len=18f)
+      val bracketDist = 76f
+      val bracketLen = 18f
       val cornerOffsets = listOf(
         Pair(Offset(center.x - bracketDist, center.y - bracketDist), Pair(Offset(bracketLen, 0f), Offset(0f, bracketLen))),
         Pair(Offset(center.x + bracketDist, center.y - bracketDist), Pair(Offset(-bracketLen, 0f), Offset(0f, bracketLen))),
@@ -1038,67 +1042,67 @@ fun FirstPersonFlightSimulator3D(
         Pair(Offset(center.x + bracketDist, center.y + bracketDist), Pair(Offset(-bracketLen, 0f), Offset(0f, -bracketLen))),
       )
       cornerOffsets.forEach { (corner, arms) ->
-        drawLine(color = hudShadow, start = corner, end = corner + arms.first, strokeWidth = 3.6f)
-        drawLine(color = hudShadow, start = corner, end = corner + arms.second, strokeWidth = 3.6f)
-        drawLine(color = hudPrimary.copy(alpha = 0.90f), start = corner, end = corner + arms.first, strokeWidth = 1.8f)
-        drawLine(color = hudPrimary.copy(alpha = 0.90f), start = corner, end = corner + arms.second, strokeWidth = 1.8f)
+        drawLine(color = hudShadow, start = corner, end = corner + arms.first, strokeWidth = 5.5f)
+        drawLine(color = hudShadow, start = corner, end = corner + arms.second, strokeWidth = 5.5f)
+        drawLine(color = hudPrimary.copy(alpha = 0.90f), start = corner, end = corner + arms.first, strokeWidth = 2.8f)
+        drawLine(color = hudPrimary.copy(alpha = 0.90f), start = corner, end = corner + arms.second, strokeWidth = 2.8f)
       }
 
-      // 3. Orizzonte Artificiale Militare Spaziale (Attitude Horizon ad alta visibilità)
+      // 3. Orizzonte Artificiale Militare Spaziale (Attitude Horizon - Raddoppiato: R=152f, Hooks=18f)
       val rollRad = shipBank
-      val horizonR = 76f
+      val horizonR = 152f
       val hx = cos(rollRad) * horizonR
       val hy = -sin(rollRad) * horizonR
       val downNx = sin(rollRad)
       val downNy = cos(rollRad)
-      val wingHookLen = 9f
+      val wingHookLen = 18f
 
       // Ala Sinistra Orizzonte
       val leftTip = Offset(center.x - hx, center.y - hy)
       val leftInner = Offset(center.x - hx * 0.44f, center.y - hy * 0.44f)
       val leftHook = Offset(leftTip.x + downNx * wingHookLen, leftTip.y + downNy * wingHookLen)
-      drawLine(color = hudShadow, start = leftTip, end = leftInner, strokeWidth = 4.8f)
-      drawLine(color = hudShadow, start = leftTip, end = leftHook, strokeWidth = 4.8f)
-      drawLine(color = hudPrimary, start = leftTip, end = leftInner, strokeWidth = 2.4f)
-      drawLine(color = hudPrimary, start = leftTip, end = leftHook, strokeWidth = 2.4f)
+      drawLine(color = hudShadow, start = leftTip, end = leftInner, strokeWidth = 7.0f)
+      drawLine(color = hudShadow, start = leftTip, end = leftHook, strokeWidth = 7.0f)
+      drawLine(color = hudPrimary, start = leftTip, end = leftInner, strokeWidth = 3.6f)
+      drawLine(color = hudPrimary, start = leftTip, end = leftHook, strokeWidth = 3.6f)
 
       // Ala Destra Orizzonte
       val rightInner = Offset(center.x + hx * 0.44f, center.y + hy * 0.44f)
       val rightTip = Offset(center.x + hx, center.y + hy)
       val rightHook = Offset(rightTip.x + downNx * wingHookLen, rightTip.y + downNy * wingHookLen)
-      drawLine(color = hudShadow, start = rightInner, end = rightTip, strokeWidth = 4.8f)
-      drawLine(color = hudShadow, start = rightTip, end = rightHook, strokeWidth = 4.8f)
-      drawLine(color = hudPrimary, start = rightInner, end = rightTip, strokeWidth = 2.4f)
-      drawLine(color = hudPrimary, start = rightTip, end = rightHook, strokeWidth = 2.4f)
+      drawLine(color = hudShadow, start = rightInner, end = rightTip, strokeWidth = 7.0f)
+      drawLine(color = hudShadow, start = rightTip, end = rightHook, strokeWidth = 7.0f)
+      drawLine(color = hudPrimary, start = rightInner, end = rightTip, strokeWidth = 3.6f)
+      drawLine(color = hudPrimary, start = rightTip, end = rightHook, strokeWidth = 3.6f)
 
-      // 4. Scala di Beccheggio Militare Spaziale (Pitch Ladder: +30°, +20°, +10°, -10°, -20°, -30°)
+      // 4. Scala di Beccheggio Militare Spaziale (Pitch Ladder: +30°, +20°, +10°, -10°, -20°, -30° - Raddoppiata)
       val pitchDeg = (shipPitch * 180f / PI).toFloat()
       val normAngle = rollRad + (PI / 2.0).toFloat()
       val nx = cos(normAngle)
       val ny = -sin(normAngle)
       for (step in listOf(30, 20, 10, -10, -20, -30)) {
-        val stepOffsetPx = (step - pitchDeg) * 1.55f
-        if (abs(stepOffsetPx) < 85f) {
+        val stepOffsetPx = (step - pitchDeg) * 2.8f
+        if (abs(stepOffsetPx) < 165f) {
           val stepCx = center.x + nx * stepOffsetPx
           val stepCy = center.y + ny * stepOffsetPx
-          val halfW = if (abs(step) == 30) 34f else 42f
+          val halfW = if (abs(step) == 30) 68f else 84f
           val p1 = Offset(stepCx - cos(rollRad) * halfW, stepCy - (-sin(rollRad)) * halfW)
           val p2 = Offset(stepCx + cos(rollRad) * halfW, stepCy + (-sin(rollRad)) * halfW)
 
           val isPositive = step > 0
           val ladderHookDir = if (isPositive) 1f else -1f
-          val hookLen = 6.5f
+          val hookLen = 13f
           val hookOffset = Offset(downNx * hookLen * ladderHookDir, downNy * hookLen * ladderHookDir)
 
           if (isPositive) {
             // Linee continue per cabrata positiva
-            drawLine(color = hudShadow, start = p1, end = p2, strokeWidth = 3.6f)
-            drawLine(color = hudShadow, start = p1, end = p1 + hookOffset, strokeWidth = 3.6f)
-            drawLine(color = hudShadow, start = p2, end = p2 + hookOffset, strokeWidth = 3.6f)
+            drawLine(color = hudShadow, start = p1, end = p2, strokeWidth = 5.5f)
+            drawLine(color = hudShadow, start = p1, end = p1 + hookOffset, strokeWidth = 5.5f)
+            drawLine(color = hudShadow, start = p2, end = p2 + hookOffset, strokeWidth = 5.5f)
 
-            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p1, end = p2, strokeWidth = 1.8f)
-            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p1, end = p1 + hookOffset, strokeWidth = 1.8f)
-            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p2, end = p2 + hookOffset, strokeWidth = 1.8f)
+            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p1, end = p2, strokeWidth = 2.8f)
+            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p1, end = p1 + hookOffset, strokeWidth = 2.8f)
+            drawLine(color = hudPrimary.copy(alpha = 0.85f), start = p2, end = p2 + hookOffset, strokeWidth = 2.8f)
           } else {
             // Linee tratteggiate per picchiata negativa
             val segCount = 4
@@ -1107,37 +1111,37 @@ fun FirstPersonFlightSimulator3D(
               val tEnd = (i + 1f) / segCount
               val s1 = Offset(p1.x + (p2.x - p1.x) * tStart, p1.y + (p2.y - p1.y) * tStart)
               val s2 = Offset(p1.x + (p2.x - p1.x) * tEnd, p1.y + (p2.y - p1.y) * tEnd)
-              drawLine(color = hudShadow, start = s1, end = s2, strokeWidth = 3.6f)
-              drawLine(color = hudPrimary.copy(alpha = 0.70f), start = s1, end = s2, strokeWidth = 1.8f)
+              drawLine(color = hudShadow, start = s1, end = s2, strokeWidth = 5.5f)
+              drawLine(color = hudPrimary.copy(alpha = 0.70f), start = s1, end = s2, strokeWidth = 2.8f)
             }
             // Ganci terminali picchiata
-            drawLine(color = hudShadow, start = p1, end = p1 + hookOffset, strokeWidth = 3.6f)
-            drawLine(color = hudShadow, start = p2, end = p2 + hookOffset, strokeWidth = 3.6f)
-            drawLine(color = hudPrimary.copy(alpha = 0.70f), start = p1, end = p1 + hookOffset, strokeWidth = 1.8f)
-            drawLine(color = hudPrimary.copy(alpha = 0.70f), start = p2, end = p2 + hookOffset, strokeWidth = 1.8f)
+            drawLine(color = hudShadow, start = p1, end = p1 + hookOffset, strokeWidth = 5.5f)
+            drawLine(color = hudShadow, start = p2, end = p2 + hookOffset, strokeWidth = 5.5f)
+            drawLine(color = hudPrimary.copy(alpha = 0.70f), start = p1, end = p1 + hookOffset, strokeWidth = 2.8f)
+            drawLine(color = hudPrimary.copy(alpha = 0.70f), start = p2, end = p2 + hookOffset, strokeWidth = 2.8f)
           }
 
           // Etichette di beccheggio ad alta leggibilità con badge scuro anti-abbagliamento
           val stepTxt = textMeasurer.measure(
             "${abs(step)}°",
-            TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = hudPrimary),
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = hudPrimary),
           )
-          val badgePad = 2f
+          val badgePad = 4f
           val badgeW = stepTxt.size.width + badgePad * 2
           val badgeH = stepTxt.size.height + badgePad * 2
-          val badgePos = Offset(p1.x - badgeW - 3f, p1.y - badgeH / 2f)
+          val badgePos = Offset(p1.x - badgeW - 6f, p1.y - badgeH / 2f)
 
           drawRoundRect(
             color = Color(0xDD040816),
             topLeft = badgePos,
             size = Size(badgeW, badgeH),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
           )
           drawText(stepTxt, topLeft = Offset(badgePos.x + badgePad, badgePos.y + badgePad))
         }
       }
 
-      // 5. Telemetria Tattica Immediata sul Mirino Centrale
+      // 5. Telemetria Tattica Immediata sul Mirino Centrale (Raddoppiata: Font 14sp/10sp, Pill estese)
       val centerSpeedKms = (abs(currentSpeed) * 240f).roundToInt()
 
       // Badge Sinistro: Velocità Effettiva (SPD)
@@ -1145,65 +1149,65 @@ fun FirstPersonFlightSimulator3D(
       val spdUnit = "KM/S"
       val spdMeas = textMeasurer.measure(
         spdLabel,
-        TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (boostActive) NebulaMagenta else StarlightWhite),
+        TextStyle(fontFamily = FredokaFontFamily, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = if (boostActive) NebulaMagenta else StarlightWhite),
       )
       val spdUnitMeas = textMeasurer.measure(
         spdUnit,
-        TextStyle(fontFamily = FredokaFontFamily, fontSize = 6.5.sp, fontWeight = FontWeight.Normal, color = hudPrimary.copy(alpha = 0.75f)),
+        TextStyle(fontFamily = FredokaFontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = hudPrimary.copy(alpha = 0.85f)),
       )
-      val spdPillW = maxOf(spdMeas.size.width, spdUnitMeas.size.width) + 12f
-      val spdPillH = spdMeas.size.height + spdUnitMeas.size.height + 6f
-      val spdPillPos = Offset(center.x - reticleR - spdPillW - 14f, center.y - spdPillH / 2f)
+      val spdPillW = maxOf(spdMeas.size.width, spdUnitMeas.size.width) + 20f
+      val spdPillH = spdMeas.size.height + spdUnitMeas.size.height + 10f
+      val spdPillPos = Offset(center.x - reticleR - spdPillW - 22f, center.y - spdPillH / 2f)
 
       drawRoundRect(
         color = Color(0xDD040816),
         topLeft = spdPillPos,
         size = Size(spdPillW, spdPillH),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
       )
       drawRoundRect(
-        color = hudPrimary.copy(alpha = 0.55f),
+        color = hudPrimary.copy(alpha = 0.65f),
         topLeft = spdPillPos,
         size = Size(spdPillW, spdPillH),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
-        style = Stroke(width = 1.2f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+        style = Stroke(width = 1.8f),
       )
-      drawText(spdMeas, topLeft = Offset(spdPillPos.x + (spdPillW - spdMeas.size.width) / 2f, spdPillPos.y + 2f))
-      drawText(spdUnitMeas, topLeft = Offset(spdPillPos.x + (spdPillW - spdUnitMeas.size.width) / 2f, spdPillPos.y + spdMeas.size.height + 2f))
+      drawText(spdMeas, topLeft = Offset(spdPillPos.x + (spdPillW - spdMeas.size.width) / 2f, spdPillPos.y + 3f))
+      drawText(spdUnitMeas, topLeft = Offset(spdPillPos.x + (spdPillW - spdUnitMeas.size.width) / 2f, spdPillPos.y + spdMeas.size.height + 3f))
 
       // Badge Destro: Assetto Prua e Beccheggio (HDG / PIT)
       val hdgLabel = "HDG $headingDeg°"
       val pitLabel = "PIT ${(pitchDeg).roundToInt()}°"
       val hdgMeas = textMeasurer.measure(
         hdgLabel,
-        TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = StarlightWhite),
+        TextStyle(fontFamily = FredokaFontFamily, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = StarlightWhite),
       )
       val pitMeas = textMeasurer.measure(
         pitLabel,
-        TextStyle(fontFamily = FredokaFontFamily, fontSize = 7.sp, fontWeight = FontWeight.Normal, color = hudPrimary.copy(alpha = 0.85f)),
+        TextStyle(fontFamily = FredokaFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = hudPrimary.copy(alpha = 0.90f)),
       )
-      val attPillW = maxOf(hdgMeas.size.width, pitMeas.size.width) + 12f
-      val attPillH = hdgMeas.size.height + pitMeas.size.height + 6f
-      val attPillPos = Offset(center.x + reticleR + 14f, center.y - attPillH / 2f)
+      val attPillW = maxOf(hdgMeas.size.width, pitMeas.size.width) + 20f
+      val attPillH = hdgMeas.size.height + pitMeas.size.height + 10f
+      val attPillPos = Offset(center.x + reticleR + 22f, center.y - attPillH / 2f)
 
       drawRoundRect(
         color = Color(0xDD040816),
         topLeft = attPillPos,
         size = Size(attPillW, attPillH),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
       )
       drawRoundRect(
-        color = hudPrimary.copy(alpha = 0.55f),
+        color = hudPrimary.copy(alpha = 0.65f),
         topLeft = attPillPos,
         size = Size(attPillW, attPillH),
-        cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
-        style = Stroke(width = 1.2f),
+        cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+        style = Stroke(width = 1.8f),
       )
-      drawText(hdgMeas, topLeft = Offset(attPillPos.x + (attPillW - hdgMeas.size.width) / 2f, attPillPos.y + 2f))
-      drawText(pitMeas, topLeft = Offset(attPillPos.x + (attPillW - pitMeas.size.width) / 2f, attPillPos.y + hdgMeas.size.height + 2f))
+      drawText(hdgMeas, topLeft = Offset(attPillPos.x + (attPillW - hdgMeas.size.width) / 2f, attPillPos.y + 3f))
+      drawText(pitMeas, topLeft = Offset(attPillPos.x + (attPillW - pitMeas.size.width) / 2f, attPillPos.y + hdgMeas.size.height + 3f))
 
-      // Badge Inferiore Tattico: Bersaglio Agganciato / Modalità Assetto
-      val targetBadgeY = center.y + reticleR + 22f
+      // Badge Inferiore Tattico: Bersaglio Agganciato / Modalità Assetto (Raddoppiato: Font 13sp / 11.5sp)
+      val targetBadgeY = center.y + reticleR + 32f
       if (autopilotTargetId != null) {
         val tBody = SolarSystemData.getPlanetById(autopilotTargetId!!)
         val tWp = OrbitalMechanics.bodyWorldPosition(tBody, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = currentMultiplier)
@@ -1211,52 +1215,52 @@ fun FirstPersonFlightSimulator3D(
         val lockLabel = "🎯 ${tBody.name.uppercase()} • ${(tDistKm).roundToInt()} MILA KM"
         val lockMeas = textMeasurer.measure(
           lockLabel,
-          TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = AuroraGreen),
+          TextStyle(fontFamily = FredokaFontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AuroraGreen),
         )
-        val lockPillW = lockMeas.size.width + 16f
-        val lockPillH = lockMeas.size.height + 6f
+        val lockPillW = lockMeas.size.width + 24f
+        val lockPillH = lockMeas.size.height + 10f
         drawRoundRect(
           color = Color(0xEE031510),
           topLeft = Offset(center.x - lockPillW / 2f, targetBadgeY),
           size = Size(lockPillW, lockPillH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
         )
         drawRoundRect(
-          color = AuroraGreen.copy(alpha = 0.80f),
+          color = AuroraGreen.copy(alpha = 0.85f),
           topLeft = Offset(center.x - lockPillW / 2f, targetBadgeY),
           size = Size(lockPillW, lockPillH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(5f, 5f),
-          style = Stroke(width = 1.2f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+          style = Stroke(width = 1.8f),
         )
-        drawText(lockMeas, topLeft = Offset(center.x - lockMeas.size.width / 2f, targetBadgeY + 3f))
+        drawText(lockMeas, topLeft = Offset(center.x - lockMeas.size.width / 2f, targetBadgeY + 4f))
       } else {
         val manLabel = "MODALITÀ MANUALE • ATT RCS"
         val manMeas = textMeasurer.measure(
           manLabel,
-          TextStyle(fontFamily = FredokaFontFamily, fontSize = 7.sp, fontWeight = FontWeight.Medium, color = CosmicCyan.copy(alpha = 0.70f)),
+          TextStyle(fontFamily = FredokaFontFamily, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = CosmicCyan.copy(alpha = 0.80f)),
         )
-        val manPillW = manMeas.size.width + 12f
-        val manPillH = manMeas.size.height + 5f
+        val manPillW = manMeas.size.width + 18f
+        val manPillH = manMeas.size.height + 8f
         drawRoundRect(
           color = Color(0xBB040816),
           topLeft = Offset(center.x - manPillW / 2f, targetBadgeY),
           size = Size(manPillW, manPillH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(7f, 7f),
         )
         drawRoundRect(
-          color = CosmicCyan.copy(alpha = 0.35f),
+          color = CosmicCyan.copy(alpha = 0.45f),
           topLeft = Offset(center.x - manPillW / 2f, targetBadgeY),
           size = Size(manPillW, manPillH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f),
-          style = Stroke(width = 0.8f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(7f, 7f),
+          style = Stroke(width = 1.4f),
         )
-        drawText(manMeas, topLeft = Offset(center.x - manMeas.size.width / 2f, targetBadgeY + 2.5f))
+        drawText(manMeas, topLeft = Offset(center.x - manMeas.size.width / 2f, targetBadgeY + 3.5f))
       }
 
       // 3. Banner Tattico di Allarme Prossimità / Sovraccarico Termico Solare sul Parabrezza
       if (sunDist < 95f || nearestDist < 52f) {
         val isSunAlert = sunDist < 95f
-        val alertBannerY = 62f
+        val alertBannerY = 72f
         val alertColor = if (isSunAlert) Color(0xFFFF2A2A) else CosmicAmber
         val alertBlink = (sin(simTimeSec * 7f) * 0.5f + 0.5f)
 
@@ -1267,24 +1271,24 @@ fun FirstPersonFlightSimulator3D(
         }
         val alertMeas = textMeasurer.measure(
           alertText,
-          TextStyle(fontFamily = FredokaFontFamily, fontSize = 8.sp, fontWeight = FontWeight.Bold, color = alertColor.copy(alpha = 0.4f + 0.6f * alertBlink)),
+          TextStyle(fontFamily = FredokaFontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = alertColor.copy(alpha = 0.4f + 0.6f * alertBlink)),
         )
-        val alertW = alertMeas.size.width + 22f
-        val alertH = 17f
+        val alertW = alertMeas.size.width + 26f
+        val alertH = 24f
         drawRoundRect(
           color = Color(0xDD0A0E1D),
           topLeft = Offset(center.x - alertW / 2f, alertBannerY - 2f),
           size = Size(alertW, alertH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
         )
         drawRoundRect(
           color = alertColor.copy(alpha = 0.35f + 0.65f * alertBlink),
           topLeft = Offset(center.x - alertW / 2f, alertBannerY - 2f),
           size = Size(alertW, alertH),
-          cornerRadius = androidx.compose.ui.geometry.CornerRadius(6f, 6f),
-          style = Stroke(width = 1.3f),
+          cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f, 8f),
+          style = Stroke(width = 1.8f),
         )
-        drawText(alertMeas, topLeft = Offset(center.x - alertMeas.size.width / 2f, alertBannerY))
+        drawText(alertMeas, topLeft = Offset(center.x - alertMeas.size.width / 2f, alertBannerY + 2f))
       }
 
       // 3. Mini-Radar Tattico 2D a cupola

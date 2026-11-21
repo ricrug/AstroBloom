@@ -59,6 +59,30 @@ class OrbitalMechanicsRealisticTest {
   }
 
   @Test
+  fun testHudDoubleScaleDimensions() {
+    // Validazione raddoppio proporzioni HUD (2x scale)
+    val baseReticleR = 26f
+    val doubledReticleR = 52f
+    assertEquals(baseReticleR * 2f, doubledReticleR, 0.001f)
+
+    val baseInnerBoresightR = 8.5f
+    val doubledInnerBoresightR = 17f
+    assertEquals(baseInnerBoresightR * 2f, doubledInnerBoresightR, 0.001f)
+
+    val baseHorizonR = 76f
+    val doubledHorizonR = 152f
+    assertEquals(baseHorizonR * 2f, doubledHorizonR, 0.001f)
+
+    val baseLadderHalfW = 42f
+    val doubledLadderHalfW = 84f
+    assertEquals(baseLadderHalfW * 2f, doubledLadderHalfW, 0.001f)
+
+    val baseBracketDist = 38f
+    val doubledBracketDist = 76f
+    assertEquals(baseBracketDist * 2f, doubledBracketDist, 0.001f)
+  }
+
+  @Test
   fun testFlightSensitivityScaling() {
     val fineMultiplier = 0.50f
     val standardMultiplier = 0.80f
