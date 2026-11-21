@@ -120,29 +120,35 @@ fun SurfaceFirstPersonViewer3D(
   val collectedSampleIds = remember { mutableStateListOf<String>() }
   val discoveredPoiIds = remember { mutableStateListOf<String>() }
 
-  // Rocce e massi 3D sparsi proceduralmente sul terreno per dare orientamento e scala reale
+  // Rocce e massi 3D sparsi proceduralmente a 360° sul terreno per dare orientamento e scala reale
   val proceduralRocks = remember {
     listOf(
-      Triple(-8f, 12f, 0.45f), Triple(10f, 15f, 0.65f), Triple(-15f, 22f, 0.85f), Triple(18f, 8f, 0.40f),
-      Triple(-5f, 28f, 0.70f), Triple(12f, 35f, 0.90f), Triple(-22f, 14f, 0.55f), Triple(25f, 26f, 0.80f),
-      Triple(-12f, -8f, 0.50f), Triple(14f, -12f, 0.60f), Triple(-20f, -18f, 0.75f), Triple(8f, -22f, 0.55f),
+      Triple(-8f, 12f, 0.55f), Triple(10f, 15f, 0.65f), Triple(-15f, 22f, 0.85f), Triple(18f, 8f, 0.45f),
+      Triple(-5f, 28f, 0.70f), Triple(12f, 35f, 0.90f), Triple(-22f, 14f, 0.60f), Triple(25f, 26f, 0.85f),
+      Triple(-12f, -8f, 0.50f), Triple(14f, -12f, 0.65f), Triple(-20f, -18f, 0.75f), Triple(8f, -22f, 0.55f),
+      Triple(-6f, -14f, 0.45f), Triple(-16f, -32f, 0.95f), Triple(18f, -28f, 0.80f), Triple(-25f, -6f, 0.70f),
       Triple(-30f, 32f, 1.10f), Triple(32f, 18f, 1.25f), Triple(-4f, 40f, 0.85f), Triple(16f, 44f, 0.95f),
       Triple(-26f, 48f, 1.30f), Triple(28f, 42f, 1.15f), Triple(-10f, 55f, 1.40f), Triple(6f, 60f, 1.20f),
-      Triple(-35f, 10f, 0.80f), Triple(38f, -8f, 0.90f), Triple(-18f, -28f, 0.70f), Triple(22f, -32f, 0.85f)
+      Triple(-35f, 10f, 0.85f), Triple(38f, -8f, 0.95f), Triple(-18f, -45f, 1.10f), Triple(22f, -50f, 1.15f),
+      Triple(-48f, -20f, 1.25f), Triple(45f, -35f, 1.30f), Triple(-40f, 50f, 1.45f), Triple(52f, 28f, 1.35f)
     )
   }
 
-  // Crateri d'impatto volumetrici 3D sul suolo del pianeta
+  // Crateri d'impatto volumetrici 3D distribuiti a 360° sul suolo del pianeta
   val proceduralCraters = remember {
     listOf(
-      Triple(-14f, 20f, 3.2f),
+      Triple(-14f, 20f, 3.5f),
       Triple(16f, 28f, 4.5f),
       Triple(-28f, 38f, 6.0f),
-      Triple(24f, 15f, 2.8f),
+      Triple(24f, 15f, 3.2f),
       Triple(-8f, 45f, 5.2f),
       Triple(30f, 50f, 7.5f),
-      Triple(-22f, -14f, 3.8f),
-      Triple(18f, -20f, 4.2f)
+      Triple(-22f, -14f, 4.0f),
+      Triple(18f, -20f, 4.5f),
+      Triple(-12f, -32f, 5.8f),
+      Triple(26f, -38f, 6.2f),
+      Triple(-36f, -5f, 4.8f),
+      Triple(40f, -10f, 5.5f)
     )
   }
 
@@ -369,11 +375,14 @@ fun SurfaceFirstPersonViewer3D(
       modifier = Modifier
         .fillMaxSize()
         .pointerInput(Unit) {
-          // Swipe per orientare lo sguardo a 360°
+          // Swipe per orientare lo sguardo a 360° (direzione naturale e isolata dall'area controller pad)
           detectDragGestures { change, dragAmount ->
-            change.consume()
-            playerYawDeg = (playerYawDeg + dragAmount.x * 0.18f + 360f) % 360f
-            playerPitchDeg = (playerPitchDeg - dragAmount.y * 0.15f).coerceIn(-50f, 50f)
+            val isPadArea = !isInsideShip && change.position.x < size.width * 0.32f && change.position.y > size.height * 0.68f
+            if (!isPadArea) {
+              change.consume()
+              playerYawDeg = (playerYawDeg - dragAmount.x * 0.16f + 360f) % 360f
+              playerPitchDeg = (playerPitchDeg - dragAmount.y * 0.14f).coerceIn(-48f, 48f)
+            }
           }
         },
     ) {
@@ -548,54 +557,46 @@ fun SurfaceFirstPersonViewer3D(
           }
         }
 
-        // 1.4 Catene Montuose a 3 Livelli di Profondità (Parallasse Panoramico)
-        val farOffset = -playerYawDeg * pxPerDeg * 0.35f
+        // 1.4 Catene Montuose Panoramiche a 3 Livelli (Ciclorama 360° Matematicamente Continuo)
+        // I profili orografici dipendono dall'azimut assoluto: seamless a 360° senza giunzioni né salti
         val distantMountainPath = Path().apply {
           moveTo(0f, horizonY)
-          for (x in 0..canvasW.toInt() step 25) {
-            val phase = (x - farOffset) * 0.0075f
-            val dH = (sin(phase) * 55f + cos(phase * 2.1f) * 28f + sin(phase * 4.3f) * 12f).coerceAtLeast(0f)
+          for (x in 0..canvasW.toInt() step 20) {
+            val azimDeg = playerYawDeg + (x - canvasW * 0.5f) / pxPerDeg
+            val azimRad = azimDeg * (PI.toFloat() / 180f)
+            val dH = (sin(2f * azimRad) * 52f + cos(3f * azimRad + 0.6f) * 30f + sin(5f * azimRad) * 15f).coerceAtLeast(0f)
             lineTo(x.toFloat(), horizonY - dH)
           }
           lineTo(canvasW, horizonY)
           close()
         }
-        drawPath(
-          path = distantMountainPath,
-          color = env.terrainSecondaryColor.copy(alpha = 0.45f),
-        )
+        drawPath(path = distantMountainPath, color = env.terrainSecondaryColor.copy(alpha = 0.45f))
 
-        val midOffset = -playerYawDeg * pxPerDeg * 0.65f
         val midHillsPath = Path().apply {
           moveTo(0f, horizonY)
-          for (x in 0..canvasW.toInt() step 20) {
-            val phase = (x - midOffset) * 0.014f
-            val mH = (sin(phase) * 32f + cos(phase * 2.8f) * 18f).coerceAtLeast(0f)
+          for (x in 0..canvasW.toInt() step 18) {
+            val azimDeg = playerYawDeg + (x - canvasW * 0.5f) / pxPerDeg
+            val azimRad = azimDeg * (PI.toFloat() / 180f)
+            val mH = (sin(3f * azimRad + 1.2f) * 28f + cos(5f * azimRad) * 18f + sin(7f * azimRad) * 10f).coerceAtLeast(0f)
             lineTo(x.toFloat(), horizonY - mH)
           }
           lineTo(canvasW, horizonY)
           close()
         }
-        drawPath(
-          path = midHillsPath,
-          color = env.terrainSecondaryColor.copy(alpha = 0.75f),
-        )
+        drawPath(path = midHillsPath, color = env.terrainSecondaryColor.copy(alpha = 0.72f))
 
-        val nearOffset = -playerYawDeg * pxPerDeg
         val nearHorizonPath = Path().apply {
           moveTo(0f, horizonY)
-          for (x in 0..canvasW.toInt() step 15) {
-            val phase = (x - nearOffset) * 0.022f
-            val nH = (sin(phase) * 14f + cos(phase * 3.5f) * 8f).coerceAtLeast(0f)
+          for (x in 0..canvasW.toInt() step 14) {
+            val azimDeg = playerYawDeg + (x - canvasW * 0.5f) / pxPerDeg
+            val azimRad = azimDeg * (PI.toFloat() / 180f)
+            val nH = (sin(4f * azimRad + 2.0f) * 15f + cos(7f * azimRad) * 9f + sin(10f * azimRad) * 5f).coerceAtLeast(0f)
             lineTo(x.toFloat(), horizonY - nH)
           }
           lineTo(canvasW, horizonY)
           close()
         }
-        drawPath(
-          path = nearHorizonPath,
-          color = env.terrainSecondaryColor,
-        )
+        drawPath(path = nearHorizonPath, color = env.terrainSecondaryColor)
 
         // =========================================================================
         // 2. TERRENO SUPERFICIALE PROSPETTICO 3D NAVIGABILE
@@ -621,7 +622,7 @@ fun SurfaceFirstPersonViewer3D(
         val camX = relX * cosYaw - relZ * sinYaw
         val camZ = relX * sinYaw + relZ * cosYaw
 
-        if (camZ <= 0.35f) return null
+        if (camZ <= 0.25f) return null
         val fovFactor = canvasW * 0.95f
         val screenX = canvasW * 0.5f + (camX / camZ) * fovFactor
         val screenY = horizonY + ((currentEyeY - worldY) / camZ) * fovFactor
@@ -629,7 +630,7 @@ fun SurfaceFirstPersonViewer3D(
       }
 
       // Funzione di utilità per tracciare segmenti del terreno in coordinate mondiali con clipping frontale
-      fun drawWorldSegment(wX1: Float, wZ1: Float, wX2: Float, wZ2: Float, color: Color, strokeWidth: Float) {
+      fun drawWorldSegment(wX1: Float, wZ1: Float, wX2: Float, wZ2: Float, color: Color, strokeWidth: Float, y1: Float = 0f, y2: Float = 0f) {
         val relX1 = wX1 - playerX
         val relZ1 = wZ1 - playerZ
         var camX1 = relX1 * cosYaw - relZ1 * sinYaw
@@ -640,7 +641,7 @@ fun SurfaceFirstPersonViewer3D(
         var camX2 = relX2 * cosYaw - relZ2 * sinYaw
         var camZ2 = relX2 * sinYaw + relZ2 * cosYaw
 
-        val nearClip = 0.40f
+        val nearClip = 0.30f
         if (camZ1 < nearClip && camZ2 < nearClip) return
 
         if (camZ1 < nearClip) {
@@ -655,146 +656,170 @@ fun SurfaceFirstPersonViewer3D(
 
         val fovFactor = canvasW * 0.95f
         val sX1 = canvasW * 0.5f + (camX1 / camZ1) * fovFactor
-        val sY1 = horizonY + (currentEyeY / camZ1) * fovFactor
+        val sY1 = horizonY + ((currentEyeY - y1) / camZ1) * fovFactor
         val sX2 = canvasW * 0.5f + (camX2 / camZ2) * fovFactor
-        val sY2 = horizonY + (currentEyeY / camZ2) * fovFactor
+        val sY2 = horizonY + ((currentEyeY - y2) / camZ2) * fovFactor
 
         drawLine(color = color, start = Offset(sX1, sY1), end = Offset(sX2, sY2), strokeWidth = strokeWidth)
       }
 
-      // 2.1 Griglia Prospettica e Ondulazioni Naturali del Regolite (Sposta e orienta con il giocatore)
-      val gridStep = 4.0f
-      val snapZ = (playerZ / gridStep).toInt() * gridStep
-      val snapX = (playerX / gridStep).toInt() * gridStep
+      // 2.1 Curve di Livello Topografiche Circolari Omnidirezionali (Omnidirectional Range Contours)
+      val rangeRings = listOf(3.5f, 7f, 12f, 18f, 26f, 36f, 50f, 70f, 95f, 130f, 175f)
+      for (r in rangeRings) {
+        val ringPath = Path()
+        var first = true
+        val isMajor = (r.toInt() % 10 == 0 || r > 90f)
+        val alpha = (0.32f - r * 0.0016f).coerceIn(0.04f, 0.32f)
+        val ringColor = if (isMajor) env.rockColor.copy(alpha = alpha * 1.35f) else Color.Black.copy(alpha = alpha * 0.70f)
 
-      // Linee trasversali (World Z costante)
-      for (zOffset in -2..16) {
-        val wz = snapZ + zOffset * gridStep
-        val distZ = abs(wz - playerZ)
-        if (distZ < 65f) {
-          val alpha = (0.28f - distZ * 0.004f).coerceIn(0.03f, 0.28f)
-          val isMajor = ((wz.roundToInt() % 16) == 0)
-          val lineColor = if (isMajor) env.rockColor.copy(alpha = alpha * 1.4f) else Color.Black.copy(alpha = alpha * 0.75f)
-          drawWorldSegment(
-            wX1 = playerX - 42f,
-            wZ1 = wz,
-            wX2 = playerX + 42f,
-            wZ2 = wz,
-            color = lineColor,
-            strokeWidth = if (isMajor) 2.2f else 1.2f,
-          )
+        for (degOffset in -45..45 step 3) {
+          val rayAngle = (playerYawDeg + degOffset) * (PI.toFloat() / 180f)
+          val wx = playerX + r * sin(rayAngle)
+          val wz = playerZ + r * cos(rayAngle)
+          val pt = projectWorldToScreen(wx, wz, 0f)
+          if (pt != null) {
+            if (first) {
+              ringPath.moveTo(pt.x, pt.y)
+              first = false
+            } else {
+              ringPath.lineTo(pt.x, pt.y)
+            }
+          }
+        }
+        if (!first) {
+          drawPath(ringPath, color = ringColor, style = Stroke(width = if (isMajor) 2.0f else 1.1f))
         }
       }
 
-      // Linee longitudinali (World X costante)
-      for (xOffset in -10..10) {
-        val wx = snapX + xOffset * gridStep
-        val distX = abs(wx - playerX)
-        if (distX < 42f) {
-          val alpha = (0.22f - distX * 0.005f).coerceIn(0.02f, 0.22f)
-          val isMajor = ((wx.roundToInt() % 16) == 0)
-          val lineColor = if (isMajor) env.rockColor.copy(alpha = alpha * 1.4f) else Color.Black.copy(alpha = alpha * 0.65f)
-          drawWorldSegment(
-            wX1 = wx,
-            wZ1 = playerZ - 8f,
-            wX2 = wx,
-            wZ2 = playerZ + 60f,
-            color = lineColor,
-            strokeWidth = if (isMajor) 2.0f else 1.0f,
-          )
+      // 2.2 Raggi Prospettici di Flusso Visivo a 360° (Radial Parallax Streamers)
+      for (psi in 0 until 360 step 15) {
+        val rayRad = psi * (PI.toFloat() / 180f)
+        val rayDirX = sin(rayRad)
+        val rayDirZ = cos(rayRad)
+        val isCard = (psi % 90 == 0)
+        val rayColor = if (isCard) env.rockColor.copy(alpha = 0.28f) else Color.Black.copy(alpha = 0.12f)
+        drawWorldSegment(
+          wX1 = playerX + rayDirX * 3.0f,
+          wZ1 = playerZ + rayDirZ * 3.0f,
+          wX2 = playerX + rayDirX * 85.0f,
+          wZ2 = playerZ + rayDirZ * 85.0f,
+          color = rayColor,
+          strokeWidth = if (isCard) 2.0f else 1.0f,
+        )
+      }
+
+      // 2.3 Scia di Orme dell'Astronauta Impresse nel Regolite (EVA Footprint Trail)
+      val pathDist = sqrt(playerX * playerX + (playerZ - 2.4f) * (playerZ - 2.4f))
+      if (pathDist > 1.2f) {
+        val numSteps = min(24, (pathDist * 1.5f).toInt())
+        val fwdX = playerX / pathDist
+        val fwdZ = (playerZ - 2.4f) / pathDist
+        val sideX = -fwdZ
+        val sideZ = fwdX
+
+        for (s in 1..numSteps) {
+          val frac = s / (numSteps + 1f)
+          val footDist = pathDist * frac
+          val isRightFoot = (s % 2 == 0)
+          val sideOffset = if (isRightFoot) 0.25f else -0.25f
+          val footX = 0f + fwdX * footDist + sideX * sideOffset
+          val footZ = 2.4f + fwdZ * footDist + sideZ * sideOffset
+          val footScreen = projectWorldToScreen(footX, footZ, 0.01f)
+          val distToPlayer = sqrt((footX - playerX) * (footX - playerX) + (footZ - playerZ) * (footZ - playerZ))
+
+          if (footScreen != null && distToPlayer > 0.4f && distToPlayer < 45f) {
+            val footScale = (canvasW * 0.95f / distToPlayer * 0.06f).coerceIn(2f, 22f)
+            drawOval(
+              color = Color(0x9902050E),
+              topLeft = Offset(footScreen.x - footScale * 0.45f, footScreen.y - footScale * 0.25f),
+              size = Size(footScale * 0.9f, footScale * 0.5f),
+            )
+          }
         }
       }
 
-      // 2.2 Tracce di Cingoli del Rover e Orme di Stivali Impresse nel Terreno
-      // Tracce continue dei cingoli del Rover dal modulo astronave (0,0) verso l'esterno
-      for (step in 0 until 18) {
-        val tZ1 = 1.8f + step * 2.4f
-        val tZ2 = 1.8f + (step + 0.65f) * 2.4f
-        val curvedX1 = sin(tZ1 * 0.08f) * 3.5f
-        val curvedX2 = sin(tZ2 * 0.08f) * 3.5f
-        // Cingolo sinistro
-        drawWorldSegment(curvedX1 - 1.1f, tZ1, curvedX2 - 1.1f, tZ2, Color(0x7702050E), 3.2f)
-        // Cingolo destro
-        drawWorldSegment(curvedX1 + 1.1f, tZ1, curvedX2 + 1.1f, tZ2, Color(0x7702050E), 3.2f)
-      }
+      // 2.4 Crateri d'Impatto 3D Volumetrici con Ombra Geometrizzata dal Sole
+      val sunShadowRad = (sunAzimuth + 180f) * (PI.toFloat() / 180f)
+      val shadowUnitX = sin(sunShadowRad)
+      val shadowUnitZ = cos(sunShadowRad)
 
-      // Orme degli stivali dell'astronauta (EVA Bootprints) impresse nella polvere del regolite
-      for (b in 1..8) {
-        val bZ = 1.8f + b * 0.65f
-        val bX = if (b % 2 == 0) -0.35f else 0.35f
-        val bPos = projectWorldToScreen(bX, bZ, 0.01f)
-        val bDist = sqrt((bX - playerX) * (bX - playerX) + (bZ - playerZ) * (bZ - playerZ))
-        if (bPos != null && bDist > 0.4f) {
-          val bScale = (18f / bDist).coerceIn(2.5f, 18f)
-          drawOval(
-            color = Color(0x8802050E),
-            topLeft = Offset(bPos.x - bScale * 0.5f, bPos.y - bScale * 0.25f),
-            size = Size(bScale, bScale * 0.5f),
-          )
-        }
-      }
-
-      // 2.3 Crateri d'Impatto 3D Volumetrici sul Suolo
       proceduralCraters.forEach { crater ->
         val cPos = projectWorldToScreen(crater.first, crater.second, 0f)
         val dist = sqrt((crater.first - playerX) * (crater.first - playerX) + (crater.second - playerZ) * (crater.second - playerZ))
-        if (cPos != null && dist > 1f) {
-          val crScale = (canvasW * 0.95f / dist * (crater.third * 0.22f)).coerceIn(4f, 180f)
-          // Bordo del cratere illuminato
+        if (cPos != null && dist > 1f && dist < 120f) {
+          val crRadiusPx = (canvasW * 0.95f / dist * (crater.third * 0.22f)).coerceIn(4f, 180f)
+
+          // 1. Aureola chiara dell'orlo esterno illuminato (Ejecta blanket)
           drawOval(
-            color = env.terrainSecondaryColor.copy(alpha = 0.9f),
-            topLeft = Offset(cPos.x - crScale, cPos.y - crScale * 0.35f),
-            size = Size(crScale * 2f, crScale * 0.7f),
+            color = env.terrainSecondaryColor.copy(alpha = 0.85f),
+            topLeft = Offset(cPos.x - crRadiusPx * 1.15f, cPos.y - crRadiusPx * 0.45f),
+            size = Size(crRadiusPx * 2.3f, crRadiusPx * 0.9f),
           )
-          // Cavità centrale in ombra profonda
+
+          // 2. Cavità interna in ombra solare (proiettata via dal Sole)
+          val innerCenter = Offset(cPos.x + shadowUnitX * crRadiusPx * 0.25f, cPos.y + shadowUnitZ * crRadiusPx * 0.12f)
           drawOval(
-            color = Color(0x8802050E),
-            topLeft = Offset(cPos.x - crScale * 0.8f, cPos.y - crScale * 0.25f),
-            size = Size(crScale * 1.6f, crScale * 0.5f),
+            color = Color(0x9902050E),
+            topLeft = Offset(innerCenter.x - crRadiusPx * 0.75f, innerCenter.y - crRadiusPx * 0.30f),
+            size = Size(crRadiusPx * 1.5f, crRadiusPx * 0.60f),
           )
+
+          // 3. Orlo netto del cratere
           drawOval(
-            color = env.rockColor.copy(alpha = 0.7f),
-            topLeft = Offset(cPos.x - crScale, cPos.y - crScale * 0.35f),
-            size = Size(crScale * 2f, crScale * 0.7f),
-            style = Stroke(width = max(1.5f, crScale * 0.05f)),
+            color = env.rockColor.copy(alpha = 0.75f),
+            topLeft = Offset(cPos.x - crRadiusPx, cPos.y - crRadiusPx * 0.38f),
+            size = Size(crRadiusPx * 2.0f, crRadiusPx * 0.76f),
+            style = Stroke(width = max(1.5f, crRadiusPx * 0.05f)),
           )
         }
       }
 
-      // 2.4 Massi e Rocce 3D Sparsi sul Terreno (Scalatura e orientamento prospettico)
+      // 2.5 Massi e Rocce 3D Sfaccettati con Ombre Direzionali Proiettate dal Sole
       proceduralRocks.forEach { rock ->
-        val rPos = projectWorldToScreen(rock.first, rock.second, 0f)
         val dist = sqrt((rock.first - playerX) * (rock.first - playerX) + (rock.second - playerZ) * (rock.second - playerZ))
-        if (rPos != null && dist > 0.5f) {
-          val rScale = (canvasW * 0.95f / dist * (rock.third * 0.25f)).coerceIn(2.5f, 75f)
-          // Ombra proiettata del masso a terra
-          drawOval(
-            color = Color(0x6602050E),
-            topLeft = Offset(rPos.x - rScale * 1.1f, rPos.y),
-            size = Size(rScale * 2.2f, rScale * 0.6f),
-          )
-          // Sagoma poligonale sfaccettata del masso 3D
-          val rockPath = Path().apply {
-            moveTo(rPos.x - rScale * 0.9f, rPos.y)
-            lineTo(rPos.x - rScale * 0.4f, rPos.y - rScale * 1.2f)
-            lineTo(rPos.x + rScale * 0.6f, rPos.y - rScale * 1.0f)
-            lineTo(rPos.x + rScale * 1.0f, rPos.y)
-            close()
+        if (dist > 0.5f && dist < 110f) {
+          val rBase = projectWorldToScreen(rock.first, rock.second, 0f)
+          val rTop = projectWorldToScreen(rock.first, rock.second, rock.third)
+          if (rBase != null && rTop != null) {
+            val rRadiusPx = (canvasW * 0.95f / dist * (rock.third * 0.28f)).coerceIn(2.5f, 70f)
+            val rHeightPx = abs(rBase.y - rTop.y).coerceAtLeast(rRadiusPx * 0.6f)
+
+            // Ombra proiettata a terra dal Sole (orientata verso sunShadowRad)
+            val shadowLenPx = rHeightPx * 2.1f
+            val shadowEndX = rBase.x + shadowUnitX * shadowLenPx
+            val shadowEndY = rBase.y + shadowUnitZ * shadowLenPx * 0.45f
+            val shadowPath = Path().apply {
+              moveTo(rBase.x - rRadiusPx * 0.8f, rBase.y)
+              lineTo(rBase.x + rRadiusPx * 0.8f, rBase.y)
+              lineTo(shadowEndX, shadowEndY)
+              close()
+            }
+            drawPath(shadowPath, color = Color(0x6602050E))
+
+            // Corpo 3D del masso sfaccettato
+            val rockPath = Path().apply {
+              moveTo(rBase.x - rRadiusPx, rBase.y)
+              lineTo(rBase.x - rRadiusPx * 0.4f, rBase.y - rHeightPx)
+              lineTo(rBase.x + rRadiusPx * 0.5f, rBase.y - rHeightPx * 0.85f)
+              lineTo(rBase.x + rRadiusPx, rBase.y)
+              close()
+            }
+            drawPath(rockPath, color = env.rockColor)
+
+            // Lato illuminato dal Sole
+            val sunHighlightPath = Path().apply {
+              moveTo(rBase.x - rRadiusPx * 0.4f, rBase.y - rHeightPx)
+              lineTo(rBase.x + rRadiusPx * 0.5f, rBase.y - rHeightPx * 0.85f)
+              lineTo(rBase.x + rRadiusPx * 0.15f, rBase.y - rHeightPx * 0.35f)
+              close()
+            }
+            drawPath(sunHighlightPath, color = Color.White.copy(alpha = 0.28f))
+            drawPath(rockPath, color = Color(0xFF1E293B), style = Stroke(width = max(1f, rRadiusPx * 0.05f)))
           }
-          drawPath(rockPath, color = env.rockColor)
-          // Lato illuminato dal Sole
-          val sunHighlightPath = Path().apply {
-            moveTo(rPos.x - rScale * 0.4f, rPos.y - rScale * 1.2f)
-            lineTo(rPos.x + rScale * 0.6f, rPos.y - rScale * 1.0f)
-            lineTo(rPos.x + rScale * 0.2f, rPos.y - rScale * 0.4f)
-            close()
-          }
-          drawPath(sunHighlightPath, color = Color.White.copy(alpha = 0.25f))
-          drawPath(rockPath, color = Color(0xFF1E293B), style = Stroke(width = max(1f, rScale * 0.06f)))
         }
       }
 
-      // 2.5 Particelle 3D di Polvere e Regolite sollevate dai passi dell'astronauta
+      // 2.6 Particelle 3D di Polvere e Regolite sollevate dai passi dell'astronauta
       dustParticles.forEach { p ->
         val pScreen = projectWorldToScreen(p.x, p.z, p.y)
         if (pScreen != null) {
@@ -815,187 +840,303 @@ fun SurfaceFirstPersonViewer3D(
       val shipDist = sqrt(playerX * playerX + playerZ * playerZ)
 
       if (!isInsideShip && shipDist > 0.4f) {
-        // 3.1 Ombra proiettata dell'astronave sul suolo
-        val shadowCenter = projectWorldToScreen(0f, 0f, 0.05f)
-        if (shadowCenter != null) {
-          val shadowW = (canvasW * 0.95f / shipDist) * 2.8f
-          drawOval(
-            color = Color(0x6602050E),
-            topLeft = Offset(shadowCenter.x - shadowW, shadowCenter.y - shadowW * 0.45f),
-            size = Size(shadowW * 2f, shadowW * 0.9f),
-          )
+        val viewAngleRad = atan2(playerX, playerZ)
+        val cosV = cos(viewAngleRad)
+        val sinV = sin(viewAngleRad)
+
+        // Vettore silhouette perpendicolare alla linea dello sguardo:
+        // Garantisce che il cilindro dell'astronave mantenga SEMPRE diametro 3D perfetto da qualsiasi angolo (0..360°)!
+        fun getSilhouetteEdge(radius: Float, isLeft: Boolean, height: Float): Offset? {
+          val sign = if (isLeft) -1f else 1f
+          val edgeX = sign * radius * cosV
+          val edgeZ = -sign * radius * sinV
+          return projectWorldToScreen(edgeX, edgeZ, height)
         }
 
-        // 3.2 Zampe d'Atterraggio (4 Zampe Telescopiche con Pistoni e Piastre al Suolo)
-        val legConfigs = listOf(
-          Pair(-2.4f, 2.2f),   // Anteriore Sinistra
-          Pair(2.4f, 2.2f),    // Anteriore Destra
-          Pair(-2.4f, -2.2f),  // Posteriore Sinistra
-          Pair(2.4f, -2.2f)    // Posteriore Destra
+        fun getFacetPoint(radius: Float, normalAngleRad: Float, height: Float): Offset? {
+          val fX = radius * sin(normalAngleRad)
+          val fZ = radius * cos(normalAngleRad)
+          return projectWorldToScreen(fX, fZ, height)
+        }
+
+        // 3.1 Ombra Proiettata Volumetrica dell'Astronave a Terra (Orientata via dal Sole)
+        val shipBase = projectWorldToScreen(0f, 0f, 0.05f)
+        if (shipBase != null) {
+          val shadowLenM = 11.0f
+          val shadowTip = projectWorldToScreen(shadowUnitX * shadowLenM, shadowUnitZ * shadowLenM, 0.05f)
+          if (shadowTip != null) {
+            val shadowW = (canvasW * 0.95f / shipDist * 1.8f).coerceIn(12f, 180f)
+            val shadowPath = Path().apply {
+              moveTo(shipBase.x - shadowW, shipBase.y)
+              lineTo(shipBase.x + shadowW, shipBase.y)
+              lineTo(shadowTip.x + shadowW * 0.35f, shadowTip.y)
+              lineTo(shadowTip.x - shadowW * 0.35f, shadowTip.y)
+              close()
+            }
+            drawPath(shadowPath, color = Color(0x7702050E))
+          }
+        }
+
+        // 3.2 Zampe d'Atterraggio Telescopiche (Quad-Pod Landing Gear)
+        val legAngles = listOf(
+          PI.toFloat() * 0.25f, // Anteriore Destra
+          PI.toFloat() * 0.75f, // Posteriore Destra
+          PI.toFloat() * 1.25f, // Posteriore Sinistra
+          PI.toFloat() * 1.75f  // Anteriore Sinistra
         )
-        for (leg in legConfigs) {
-          val footScreen = projectWorldToScreen(leg.first, leg.second, 0.05f)
-          val kneeScreen = projectWorldToScreen(leg.first * 0.65f, leg.second * 0.65f, 1.4f)
-          val hipScreen = projectWorldToScreen(leg.first * 0.45f, leg.second * 0.45f, 2.1f)
-          if (footScreen != null && kneeScreen != null && hipScreen != null) {
-            val legStroke = (canvasW * 0.95f / shipDist * 0.12f).coerceIn(2f, 14f)
-            // Piastra d'atterraggio (Footpad circolare)
-            drawCircle(
-              color = Color(0xFF1E293B),
-              radius = legStroke * 2.2f,
-              center = footScreen,
-            )
-            drawCircle(
-              color = Color(0xFF64748B),
-              radius = legStroke * 2.2f,
-              center = footScreen,
-              style = Stroke(width = 1.5f),
-            )
-            // Pistone idraulico e montante diagonale
-            drawLine(color = StarlightWhite, start = hipScreen, end = kneeScreen, strokeWidth = legStroke)
-            drawLine(color = Color(0xFF94A3B8), start = kneeScreen, end = footScreen, strokeWidth = legStroke * 0.8f)
-          }
-        }
 
-        // 3.3 Ugello Campaniforme del Motore a Razzo Principale
-        val bellTop = projectWorldToScreen(0f, 0f, 1.4f)
-        val bellBottom = projectWorldToScreen(0f, 0f, 0.35f)
-        if (bellTop != null && bellBottom != null) {
-          val bellW = (canvasW * 0.95f / shipDist * 0.85f).coerceIn(4f, 120f)
-          val bellPath = Path().apply {
-            moveTo(bellTop.x - bellW * 0.4f, bellTop.y)
-            lineTo(bellTop.x + bellW * 0.4f, bellTop.y)
-            lineTo(bellBottom.x + bellW * 0.8f, bellBottom.y)
-            lineTo(bellBottom.x - bellW * 0.8f, bellBottom.y)
-            close()
-          }
-          drawPath(bellPath, color = Color(0xFF1E293B))
-          drawPath(bellPath, color = CosmicAmber.copy(alpha = 0.75f), style = Stroke(width = 2f))
-        }
+        val shipCamZ = (-playerX) * sinYaw + (-playerZ) * cosYaw
+        data class LegData(val angle: Float, val foot: Offset?, val knee: Offset?, val hip: Offset?, val camZ: Float)
 
-        // 3.4 Fusoliera Centrale / Modulo di Servizio (Lamina Termica Dorata MLI)
-        val hullBottom = projectWorldToScreen(0f, 0f, 1.6f)
-        val hullTop = projectWorldToScreen(0f, 0f, 3.4f)
-        if (hullBottom != null && hullTop != null) {
-          val hullRadius = 2.0f
-          val hLeftB = projectWorldToScreen(-hullRadius, 0f, 1.6f) ?: Offset(hullBottom.x - 40f, hullBottom.y)
-          val hRightB = projectWorldToScreen(hullRadius, 0f, 1.6f) ?: Offset(hullBottom.x + 40f, hullBottom.y)
-          val hLeftT = projectWorldToScreen(-hullRadius * 0.9f, 0f, 3.4f) ?: Offset(hullTop.x - 36f, hullTop.y)
-          val hRightT = projectWorldToScreen(hullRadius * 0.9f, 0f, 3.4f) ?: Offset(hullTop.x + 36f, hullTop.y)
+        val projectedLegs = legAngles.map { phi ->
+          val footX = 2.8f * sin(phi)
+          val footZ = 2.8f * cos(phi)
+          val kneeX = 2.0f * sin(phi)
+          val kneeZ = 2.0f * cos(phi)
+          val hipX = 1.2f * sin(phi)
+          val hipZ = 1.2f * cos(phi)
 
-          val hullPath = Path().apply {
-            moveTo(hLeftB.x, hLeftB.y)
-            lineTo(hRightB.x, hRightB.y)
-            lineTo(hRightT.x, hRightT.y)
-            lineTo(hLeftT.x, hLeftT.y)
-            close()
-          }
-          // Riflesso scintillante dorato dell'isolante termico aerospaziale
-          drawPath(
-            path = hullPath,
-            brush = Brush.verticalGradient(
-              colors = listOf(Color(0xFFF59E0B), Color(0xFFB45309)),
-              startY = hLeftT.y,
-              endY = hLeftB.y,
-            ),
+          val lCamZ = (footX - playerX) * sinYaw + (footZ - playerZ) * cosYaw
+          LegData(
+            angle = phi,
+            foot = projectWorldToScreen(footX, footZ, 0.05f),
+            knee = projectWorldToScreen(kneeX, kneeZ, 1.25f),
+            hip = projectWorldToScreen(hipX, hipZ, 2.1f),
+            camZ = lCamZ
           )
-          drawPath(path = hullPath, color = Color(0xFF78350F), style = Stroke(width = 2.2f))
+        }
 
-          // Trama a rombi della pellicola termica
-          for (step in 1..4) {
-            val frac = step / 5f
-            val yLine = hLeftT.y + (hLeftB.y - hLeftT.y) * frac
+        fun drawSingleLeg(leg: LegData) {
+          if (leg.foot != null && leg.knee != null && leg.hip != null) {
+            val legStroke = (canvasW * 0.95f / shipDist * 0.09f).coerceIn(2f, 13f)
+            drawCircle(color = Color(0xFF1E293B), radius = legStroke * 2.2f, center = leg.foot)
+            drawCircle(color = Color(0xFF94A3B8), radius = legStroke * 2.2f, center = leg.foot, style = Stroke(width = 1.5f))
+            drawLine(color = StarlightWhite, start = leg.hip, end = leg.knee, strokeWidth = legStroke)
+            drawLine(color = Color(0xFF64748B), start = leg.knee, end = leg.foot, strokeWidth = legStroke * 0.85f)
+            drawCircle(color = CosmicAmber, radius = legStroke * 0.75f, center = leg.knee)
+          }
+        }
+
+        // Disegna prima le zampe posteriori (dietro alla fusoliera)
+        projectedLegs.filter { it.camZ > shipCamZ }.forEach { drawSingleLeg(it) }
+
+        // 3.3 Ugello Campaniforme del Motore a Razzo Principale (Descent Rocket Engine)
+        val bellTop = projectWorldToScreen(0f, 0f, 1.4f)
+        val bellBottom = projectWorldToScreen(0f, 0f, 0.40f)
+        if (bellTop != null && bellBottom != null) {
+          val bellW = (canvasW * 0.95f / shipDist * 0.85f).coerceIn(3f, 110f)
+          val bellPath = Path().apply {
+            moveTo(bellTop.x - bellW * 0.35f, bellTop.y)
+            lineTo(bellTop.x + bellW * 0.35f, bellTop.y)
+            lineTo(bellBottom.x + bellW * 0.85f, bellBottom.y)
+            lineTo(bellBottom.x - bellW * 0.85f, bellBottom.y)
+            close()
+          }
+          drawPath(bellPath, color = Color(0xFF0F172A))
+          drawPath(bellPath, color = CosmicAmber.copy(alpha = 0.85f), style = Stroke(width = 2f))
+        }
+
+        // 3.4 Fusoliera Cilindrica del Modulo di Servizio (Lamina Termica Dorata MLI)
+        val hullR = 2.0f
+        val hLeftB = getSilhouetteEdge(hullR, isLeft = true, height = 1.4f)
+        val hRightB = getSilhouetteEdge(hullR, isLeft = false, height = 1.4f)
+        val hLeftT = getSilhouetteEdge(hullR, isLeft = true, height = 3.2f)
+        val hRightT = getSilhouetteEdge(hullR, isLeft = false, height = 3.2f)
+        val hCenterB = getFacetPoint(hullR, normalAngleRad = viewAngleRad + PI.toFloat(), height = 1.4f)
+        val hCenterT = getFacetPoint(hullR, normalAngleRad = viewAngleRad + PI.toFloat(), height = 3.2f)
+
+        if (hLeftB != null && hRightB != null && hLeftT != null && hRightT != null) {
+          if (hCenterB != null && hCenterT != null) {
+            val leftNormal = viewAngleRad - PI.toFloat() * 0.25f
+            val leftLight = max(0.25f, cos(leftNormal - sunShadowRad + PI.toFloat()))
+            val leftPath = Path().apply {
+              moveTo(hLeftB.x, hLeftB.y)
+              lineTo(hCenterB.x, hCenterB.y)
+              lineTo(hCenterT.x, hCenterT.y)
+              lineTo(hLeftT.x, hLeftT.y)
+              close()
+            }
+            drawPath(
+              path = leftPath,
+              brush = Brush.verticalGradient(
+                colors = listOf(
+                  Color(0xFFF59E0B).copy(alpha = leftLight),
+                  Color(0xFFB45309).copy(alpha = leftLight),
+                  Color(0xFF78350F).copy(alpha = leftLight),
+                ),
+                startY = hLeftT.y,
+                endY = hLeftB.y,
+              ),
+            )
+            drawPath(leftPath, color = Color(0xFF78350F), style = Stroke(width = 1.8f))
+
+            val rightNormal = viewAngleRad + PI.toFloat() * 0.25f
+            val rightLight = max(0.25f, cos(rightNormal - sunShadowRad + PI.toFloat()))
+            val rightPath = Path().apply {
+              moveTo(hCenterB.x, hCenterB.y)
+              lineTo(hRightB.x, hRightB.y)
+              lineTo(hRightT.x, hRightT.y)
+              lineTo(hCenterT.x, hCenterT.y)
+              close()
+            }
+            drawPath(
+              path = rightPath,
+              brush = Brush.verticalGradient(
+                colors = listOf(
+                  Color(0xFFF59E0B).copy(alpha = rightLight),
+                  Color(0xFFB45309).copy(alpha = rightLight),
+                  Color(0xFF78350F).copy(alpha = rightLight),
+                ),
+                startY = hRightT.y,
+                endY = hRightB.y,
+              ),
+            )
+            drawPath(rightPath, color = Color(0xFF78350F), style = Stroke(width = 1.8f))
+          } else {
+            val hullPath = Path().apply {
+              moveTo(hLeftB.x, hLeftB.y)
+              lineTo(hRightB.x, hRightB.y)
+              lineTo(hRightT.x, hRightT.y)
+              lineTo(hLeftT.x, hLeftT.y)
+              close()
+            }
+            drawPath(hullPath, brush = Brush.verticalGradient(listOf(Color(0xFFF59E0B), Color(0xFFB45309)), startY = hLeftT.y, endY = hLeftB.y))
+            drawPath(hullPath, color = Color(0xFF78350F), style = Stroke(width = 2.0f))
+          }
+
+          // Fasce dorate di trama termica MLI
+          for (f in 1..3) {
+            val frac = f / 4f
+            val yL = hLeftT.y + (hLeftB.y - hLeftT.y) * frac
+            val yR = hRightT.y + (hRightB.y - hRightT.y) * frac
             drawLine(
-              color = Color(0xFFFDE68A).copy(alpha = 0.45f),
-              start = Offset(hLeftT.x + (hLeftB.x - hLeftT.x) * frac, yLine),
-              end = Offset(hRightT.x + (hRightB.x - hRightT.x) * frac, yLine),
+              color = Color(0xFFFDE68A).copy(alpha = 0.50f),
+              start = Offset(hLeftT.x + (hLeftB.x - hLeftT.x) * frac, yL),
+              end = Offset(hRightT.x + (hRightB.x - hRightT.x) * frac, yR),
               strokeWidth = 1.2f,
             )
           }
         }
 
-        // 3.5 Modulo Superiore Cabina di Comando (Titanio Bianco Aerospaziale)
+        // 3.5 Modulo di Comando / Cabina Astronauti (Cono Ottagonale in Titanio Bianco Aerospaziale)
+        val cabR = 1.6f
+        val cabTopR = 0.8f
+        val cLeftB = getSilhouetteEdge(cabR, isLeft = true, height = 3.2f)
+        val cRightB = getSilhouetteEdge(cabR, isLeft = false, height = 3.2f)
+        val cLeftT = getSilhouetteEdge(cabTopR, isLeft = true, height = 4.4f)
+        val cRightT = getSilhouetteEdge(cabTopR, isLeft = false, height = 4.4f)
         val apexScreen = projectWorldToScreen(0f, 0f, 5.2f)
-        if (hullTop != null && apexScreen != null) {
-          val cabRadius = 1.8f
-          val cLeft = projectWorldToScreen(-cabRadius * 0.85f, 0f, 3.4f) ?: Offset(hullTop.x - 30f, hullTop.y)
-          val cRight = projectWorldToScreen(cabRadius * 0.85f, 0f, 3.4f) ?: Offset(hullTop.x + 30f, hullTop.y)
 
+        if (cLeftB != null && cRightB != null && cLeftT != null && cRightT != null && apexScreen != null) {
           val cabPath = Path().apply {
-            moveTo(cLeft.x, cLeft.y)
-            lineTo(cRight.x, cRight.y)
+            moveTo(cLeftB.x, cLeftB.y)
+            lineTo(cRightB.x, cRightB.y)
+            lineTo(cRightT.x, cRightT.y)
             lineTo(apexScreen.x, apexScreen.y)
+            lineTo(cLeftT.x, cLeftT.y)
             close()
           }
           drawPath(
             path = cabPath,
             brush = Brush.verticalGradient(
-              colors = listOf(Color(0xFFF8FAFC), Color(0xFF94A3B8)),
+              colors = listOf(Color(0xFFFFFFFF), Color(0xFFE2E8F0), Color(0xFF94A3B8)),
               startY = apexScreen.y,
-              endY = cLeft.y,
+              endY = cLeftB.y,
             ),
           )
-          drawPath(path = cabPath, color = Color(0xFF475569), style = Stroke(width = 2.2f))
+          drawPath(cabPath, color = Color(0xFF475569), style = Stroke(width = 2.0f))
 
-          // Oblò Panoramico Esagonale della Cabina (Illuminato Ciano)
-          val windowPos = projectWorldToScreen(0f, 1.2f, 4.0f)
+          // Oblò Panoramico Esagonale della Cabina
+          val windowPos = projectWorldToScreen(
+            -sinV * 1.1f,
+            -cosV * 1.1f,
+            4.0f
+          )
           if (windowPos != null) {
-            val winScale = (canvasW * 0.95f / shipDist * 0.35f).coerceIn(3f, 55f)
-            drawCircle(color = CosmicCyan.copy(alpha = 0.85f), radius = winScale, center = windowPos)
+            val winScale = (canvasW * 0.95f / shipDist * 0.32f).coerceIn(3f, 50f)
+            drawCircle(color = CosmicCyan.copy(alpha = 0.90f), radius = winScale, center = windowPos)
             drawCircle(color = Color.White, radius = winScale, center = windowPos, style = Stroke(width = 1.8f))
-            drawCircle(color = Color.White.copy(alpha = 0.6f), radius = winScale * 0.45f, center = Offset(windowPos.x - winScale * 0.25f, windowPos.y - winScale * 0.25f))
+            drawCircle(color = Color.White.copy(alpha = 0.7f), radius = winScale * 0.45f, center = Offset(windowPos.x - winScale * 0.25f, windowPos.y - winScale * 0.25f))
           }
         }
 
-        // 3.6 Portellone Airlock Aperto (con Luce Interna Calda che Filtra all'Esterno)
-        val hatchTop = projectWorldToScreen(0f, 1.6f, 3.0f)
-        val hatchBottom = projectWorldToScreen(0f, 1.6f, 1.7f)
-        if (hatchTop != null && hatchBottom != null) {
-          val hatchW = (canvasW * 0.95f / shipDist * 0.45f).coerceIn(4f, 65f)
-          val hatchH = abs(hatchBottom.y - hatchTop.y).coerceAtLeast(6f)
-          // Luce interna calda
-          drawRoundRect(
-            color = Color(0xFFFEF08A).copy(alpha = 0.90f),
-            topLeft = Offset(hatchTop.x - hatchW * 0.5f, hatchTop.y),
-            size = Size(hatchW, hatchH),
-            cornerRadius = CornerRadius(hatchW * 0.15f),
-          )
-          drawRoundRect(
-            color = Color(0xFF334155),
-            topLeft = Offset(hatchTop.x - hatchW * 0.5f, hatchTop.y),
-            size = Size(hatchW, hatchH),
-            cornerRadius = CornerRadius(hatchW * 0.15f),
-            style = Stroke(width = 2.5f),
-          )
+        // 3.6 Portellone Airlock e Scaletta (visibili se guardi dal lato del disimbarco)
+        val airlockFacing = cos(viewAngleRad)
+        if (airlockFacing > -0.2f) {
+          val hatchTop = projectWorldToScreen(0f, 1.6f, 2.9f)
+          val hatchBottom = projectWorldToScreen(0f, 1.6f, 1.6f)
+          if (hatchTop != null && hatchBottom != null) {
+            val hatchW = (canvasW * 0.95f / shipDist * 0.42f).coerceIn(4f, 60f)
+            val hatchH = abs(hatchBottom.y - hatchTop.y).coerceAtLeast(6f)
+            drawRoundRect(
+              color = Color(0xFFFEF08A).copy(alpha = 0.92f),
+              topLeft = Offset(hatchTop.x - hatchW * 0.5f, hatchTop.y),
+              size = Size(hatchW, hatchH),
+              cornerRadius = CornerRadius(hatchW * 0.15f),
+            )
+            drawRoundRect(
+              color = Color(0xFF1E293B),
+              topLeft = Offset(hatchTop.x - hatchW * 0.5f, hatchTop.y),
+              size = Size(hatchW, hatchH),
+              cornerRadius = CornerRadius(hatchW * 0.15f),
+              style = Stroke(width = 2.2f),
+            )
 
-          // 3.7 Scaletta di Sbarco Metallica con Pioli (dall'airlock al terreno)
-          val ladderFootLeft = projectWorldToScreen(-0.4f, 2.3f, 0.05f)
-          val ladderFootRight = projectWorldToScreen(0.4f, 2.3f, 0.05f)
-          val ladderTopLeft = Offset(hatchTop.x - hatchW * 0.35f, hatchBottom.y)
-          val ladderTopRight = Offset(hatchTop.x + hatchW * 0.35f, hatchBottom.y)
+            val ladderFootL = projectWorldToScreen(-0.35f, 2.3f, 0.05f)
+            val ladderFootR = projectWorldToScreen(0.35f, 2.3f, 0.05f)
+            val ladderTopL = Offset(hatchTop.x - hatchW * 0.35f, hatchBottom.y)
+            val ladderTopR = Offset(hatchTop.x + hatchW * 0.35f, hatchBottom.y)
 
-          if (ladderFootLeft != null && ladderFootRight != null) {
-            val ladderStroke = (canvasW * 0.95f / shipDist * 0.06f).coerceIn(1.5f, 6f)
-            // Montanti
-            drawLine(color = StarlightWhite, start = ladderTopLeft, end = ladderFootLeft, strokeWidth = ladderStroke)
-            drawLine(color = StarlightWhite, start = ladderTopRight, end = ladderFootRight, strokeWidth = ladderStroke)
-
-            // 5 Pioli orizzontali
-            for (r in 1..5) {
-              val frac = r / 6f
-              val stepL = Offset(ladderTopLeft.x + (ladderFootLeft.x - ladderTopLeft.x) * frac, ladderTopLeft.y + (ladderFootLeft.y - ladderTopLeft.y) * frac)
-              val stepR = Offset(ladderTopRight.x + (ladderFootRight.x - ladderTopRight.x) * frac, ladderTopRight.y + (ladderFootRight.y - ladderTopRight.y) * frac)
-              drawLine(color = CosmicAmber, start = stepL, end = stepR, strokeWidth = ladderStroke * 0.85f)
+            if (ladderFootL != null && ladderFootR != null) {
+              val lStroke = (canvasW * 0.95f / shipDist * 0.055f).coerceIn(1.5f, 5.5f)
+              drawLine(color = StarlightWhite, start = ladderTopL, end = ladderFootL, strokeWidth = lStroke)
+              drawLine(color = StarlightWhite, start = ladderTopR, end = ladderFootR, strokeWidth = lStroke)
+              for (r in 1..5) {
+                val f = r / 6f
+                val sL = Offset(ladderTopL.x + (ladderFootL.x - ladderTopL.x) * f, ladderTopL.y + (ladderFootL.y - ladderTopL.y) * f)
+                val sR = Offset(ladderTopR.x + (ladderFootR.x - ladderTopR.x) * f, ladderTopR.y + (ladderFootR.y - ladderTopR.y) * f)
+                drawLine(color = CosmicAmber, start = sL, end = sR, strokeWidth = lStroke * 0.85f)
+              }
             }
           }
+        }
+
+        // Disegna adesso le zampe anteriori (in primo piano rispetto alla fusoliera)
+        projectedLegs.filter { it.camZ <= shipCamZ }.forEach { drawSingleLeg(it) }
+
+        // 3.7 Antenna di Telemetria e Faro Stroboscopico Pulsante (Beacon Light a Lunga Gittata)
+        val mastTip = projectWorldToScreen(0f, 0f, 7.2f)
+        val dishPos = projectWorldToScreen(0.25f, 0.25f, 6.2f)
+        if (apexScreen != null && mastTip != null) {
+          drawLine(color = StarlightWhite, start = apexScreen, end = mastTip, strokeWidth = 2.5f)
+          if (dishPos != null) {
+            drawCircle(color = Color(0xFF64748B), radius = 6f, center = dishPos)
+            drawLine(color = Color(0xFFCBD5E1), start = dishPos, end = Offset(dishPos.x + 8f, dishPos.y - 6f), strokeWidth = 1.5f)
+          }
+
+          val strobePhase = (simTimeSec * 4f) % (2f * PI.toFloat())
+          val strobeSine = sin(strobePhase).coerceAtLeast(0f)
+          val strobeBright = (strobeSine * strobeSine).coerceIn(0f, 1f)
+          val beaconR = (8f + strobeBright * 18f).coerceIn(4f, 32f)
+
+          drawCircle(
+            brush = Brush.radialGradient(
+              colors = listOf(Color.White, CosmicAmber.copy(alpha = 0.8f * strobeBright), Color.Transparent),
+              center = mastTip,
+              radius = beaconR * 2.2f,
+            ),
+            radius = beaconR * 2.2f,
+            center = mastTip,
+          )
+          drawCircle(color = Color.White, radius = 3.5f + strobeBright * 2.5f, center = mastTip)
         }
 
         // 3.8 Bandiera della Missione AstroBloom Piantata Accanto alla Scaletta
         val flagBase = projectWorldToScreen(1.6f, 2.8f, 0.05f)
         val flagPoleTop = projectWorldToScreen(1.6f, 2.8f, 1.8f)
         if (flagBase != null && flagPoleTop != null) {
-          val fScale = (canvasW * 0.95f / shipDist * 0.4f).coerceIn(4f, 60f)
-          drawLine(color = StarlightWhite, start = flagBase, end = flagPoleTop, strokeWidth = 2.5f)
+          val fScale = (canvasW * 0.95f / shipDist * 0.38f).coerceIn(4f, 60f)
+          drawLine(color = StarlightWhite, start = flagBase, end = flagPoleTop, strokeWidth = 2.2f)
           val flagPath = Path().apply {
             moveTo(flagPoleTop.x, flagPoleTop.y)
             lineTo(flagPoleTop.x + fScale, flagPoleTop.y + fScale * 0.08f * sin(simTimeSec * 4f))
@@ -1007,23 +1148,28 @@ fun SurfaceFirstPersonViewer3D(
           drawPath(flagPath, color = Color.White, style = Stroke(width = 1.2f))
         }
 
-        // 3.9 Targa e Logo Fluttuante dell'Astronave
-        if (shipDist < 16f && apexScreen != null) {
-          val shipNameMeas = textMeasurer.measure(
-            "🚀 ASTRONAVE ASTROBLOOM-I",
-            TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = CosmicAmber),
+        // 3.9 Segnaposto Tattico Olografico HUD Permanente dell'Astronave (Sempre Visibile a Qualsiasi Distanza!)
+        val targetScreenPos = mastTip ?: apexScreen
+        if (targetScreenPos != null) {
+          val badgeText = "🚀 ASTROBLOOM-I • ${shipDist.toInt()}m"
+          val badgeMeas = textMeasurer.measure(
+            badgeText,
+            TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CosmicAmber),
           )
-          val distMeas = textMeasurer.measure(
-            "${String.format("%.1f", shipDist)}m dal modulo di discesa",
-            TextStyle(fontFamily = FredokaFontFamily, fontSize = 7.5.sp, color = StarlightWhite.copy(alpha = 0.85f)),
+          val badgeW = badgeMeas.size.width + 16f
+          val badgeH = badgeMeas.size.height + 6f
+          val badgePos = Offset(targetScreenPos.x - badgeW / 2f, targetScreenPos.y - badgeH - 14f)
+
+          drawRoundRect(color = Color(0xEE04091A), topLeft = badgePos, size = Size(badgeW, badgeH), cornerRadius = CornerRadius(6f))
+          drawRoundRect(color = CosmicAmber, topLeft = badgePos, size = Size(badgeW, badgeH), cornerRadius = CornerRadius(6f), style = Stroke(width = 1.4f))
+          drawText(badgeMeas, topLeft = Offset(badgePos.x + 8f, badgePos.y + 2f))
+
+          drawLine(
+            color = CosmicAmber.copy(alpha = 0.7f),
+            start = Offset(targetScreenPos.x, badgePos.y + badgeH),
+            end = targetScreenPos,
+            strokeWidth = 1.5f,
           )
-          val badgeW = maxOf(shipNameMeas.size.width, distMeas.size.width) + 16f
-          val badgeH = shipNameMeas.size.height + distMeas.size.height + 6f
-          val badgePos = Offset(apexScreen.x - badgeW / 2f, apexScreen.y - badgeH - 12f)
-          drawRoundRect(color = Color(0xDD04091A), topLeft = badgePos, size = Size(badgeW, badgeH), cornerRadius = CornerRadius(6f))
-          drawRoundRect(color = CosmicAmber.copy(alpha = 0.7f), topLeft = badgePos, size = Size(badgeW, badgeH), cornerRadius = CornerRadius(6f), style = Stroke(width = 1.2f))
-          drawText(shipNameMeas, topLeft = Offset(badgePos.x + 8f, badgePos.y + 2f))
-          drawText(distMeas, topLeft = Offset(badgePos.x + 8f, badgePos.y + shipNameMeas.size.height + 2f))
         }
       } else if (isInsideShip) {
         // =========================================================================
@@ -1557,12 +1703,12 @@ fun SurfaceFirstPersonViewer3D(
       var leftStackCount = 0
       var rightStackCount = 0
 
-      // A) Indicatore Off-Screen dell'Astronave AstroBloom-I
-      if (!isInsideShip && shipDist > 4.2f) {
+      // A) Indicatore Off-Screen dell'Astronave AstroBloom-I (Sempre attivo se la navicella è fuori dal cono visivo)
+      if (!isInsideShip && shipDist > 1.8f) {
         val angleToShip = ((atan2(-playerX.toDouble(), -playerZ.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
         if (abs(angleToShip) > 36.0) {
           val isLeft = angleToShip < 0
-          val text = if (isLeft) "◀ 🚀 NAVE • ${shipDist.roundToInt()}m" else "🚀 NAVE • ${shipDist.roundToInt()}m ▶"
+          val text = if (isLeft) "◀ 🚀 BASE ASTROBLOOM-I • ${shipDist.roundToInt()}m" else "🚀 BASE ASTROBLOOM-I • ${shipDist.roundToInt()}m ▶"
           val meas = textMeasurer.measure(
             text,
             TextStyle(fontFamily = FredokaFontFamily, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = CosmicAmber),

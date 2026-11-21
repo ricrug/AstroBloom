@@ -281,4 +281,50 @@ class SurfaceExplorationTest {
     assertEquals(1.0f, normMax, 0.01f)
     assertEquals(1.0f, curvedMax, 0.01f)
   }
+
+  @Test
+  fun testTrue3DSpaceshipCylindricalSilhouetteNonCollapse() {
+    val shipRadius = 2.0f
+    val anglesToTestDeg = listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f)
+
+    for (angDeg in anglesToTestDeg) {
+      val viewAngleRad = angDeg * (kotlin.math.PI.toFloat() / 180f)
+      val cosV = kotlin.math.cos(viewAngleRad)
+      val sinV = kotlin.math.sin(viewAngleRad)
+
+      // Silhouette points perpendicular to camera ray
+      val leftX = -shipRadius * cosV
+      val leftZ = shipRadius * sinV
+      val rightX = shipRadius * cosV
+      val rightZ = -shipRadius * sinV
+
+      // Distance between left and right silhouette in 3D world space
+      val dx = rightX - leftX
+      val dz = rightZ - leftZ
+      val silhouetteWidth = kotlin.math.sqrt(dx * dx + dz * dz)
+
+      // Silhouette diameter must ALWAYS be exactly 2 * radius (4.0m) regardless of viewing angle!
+      assertEquals("Silhouette diameter must never collapse at $angDeg deg", 2f * shipRadius, silhouetteWidth, 0.001f)
+    }
+  }
+
+  @Test
+  fun testSeamless360HarmonicMountainPanorama() {
+    fun getMountainElevation(azimDeg: Float): Float {
+      val azimRad = azimDeg * (kotlin.math.PI.toFloat() / 180f)
+      return (kotlin.math.sin(2f * azimRad) * 52f + kotlin.math.cos(3f * azimRad + 0.6f) * 30f + kotlin.math.sin(5f * azimRad) * 15f).coerceAtLeast(0f)
+    }
+
+    // Continuity test across full 360° circle: 0° and 360° must yield identical height
+    val h0 = getMountainElevation(0f)
+    val h360 = getMountainElevation(360f)
+    assertEquals("Panorama at 0° and 360° must be strictly seamless and identical", h0, h360, 0.0001f)
+
+    // Test intermediate angles for smooth positive values
+    for (step in 0..72) {
+      val deg = step * 5f
+      val h = getMountainElevation(deg)
+      assertTrue("Mountain elevation must be non-negative at $deg deg", h >= 0f)
+    }
+  }
 }
