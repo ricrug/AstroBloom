@@ -100,6 +100,7 @@ fun LandingSimulatorScreen(
   chibiProfile: ChibiProfile,
   onMarkExplored: (String) -> Unit,
   onBack: () -> Unit,
+  onStartSurfaceExploration: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val body = SolarSystemData.getPlanetById(planetId)
@@ -387,6 +388,17 @@ fun LandingSimulatorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
               ) {
+                if (outcome == LanderOutcome.LANDED_SUCCESS) {
+                  Button(
+                    onClick = { onStartSurfaceExploration(body.id) },
+                    colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1.35f).testTag("landing_explore_button"),
+                  ) {
+                    Text("🥾 Sbarca ed Esplora", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                  }
+                }
                 Button(
                   onClick = { resetSeed++ },
                   colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),

@@ -26,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Compare
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FlightLand
 import androidx.compose.material.icons.rounded.Quiz
 import androidx.compose.material.icons.rounded.Refresh
@@ -91,6 +92,7 @@ fun PlanetDetailScreen(
   onBack: () -> Unit,
   onStartPlanetQuiz: (String) -> Unit,
   onOpenLandingSimulator: (String) -> Unit,
+  onOpenSurfaceExploration: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   val body = SolarSystemData.getPlanetById(planetId)
@@ -454,8 +456,23 @@ fun PlanetDetailScreen(
         }
       }
 
-      // Landing Simulator & Planet Quiz CTAs
+      // Landing Simulator, Surface Exploration & Planet Quiz CTAs
       if (body.id != "sun") {
+        Button(
+          onClick = { onOpenSurfaceExploration(body.id) },
+          colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
+          shape = RoundedCornerShape(18.dp),
+          modifier = Modifier.fillMaxWidth().height(54.dp).testTag("planet_surface_explore_cta"),
+        ) {
+          Icon(Icons.Rounded.Explore, contentDescription = null)
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = "🥾 Sbarca ed Esplora ${body.name} (Prima Persona)!",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+          )
+        }
+
         Button(
           onClick = { onOpenLandingSimulator(body.id) },
           colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),

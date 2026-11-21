@@ -69,6 +69,7 @@ import com.ricrug.ui.screens.PlanetDetailScreen
 import com.ricrug.ui.screens.PlanetsHomeScreen
 import com.ricrug.ui.screens.QuizScreen
 import com.ricrug.ui.screens.SplashScreen
+import com.ricrug.ui.screens.SurfaceExplorationScreen
 import com.ricrug.ui.theme.AstroViaggioTheme
 import com.ricrug.ui.theme.ComicInk
 import com.ricrug.ui.theme.CosmicAmber
@@ -95,6 +96,7 @@ private sealed class AstroTab(
 
 private const val ROUTE_PLANET_DETAIL = "planet_detail/{planetId}"
 private const val ROUTE_LANDING_SIM = "landing_sim/{planetId}"
+private const val ROUTE_SURFACE_EXPLORE = "surface_explore/{planetId}"
 private const val ROUTE_FIRST_PERSON_SIM = "first_person_sim"
 private const val ROUTE_ASTEROID_DODGE = "asteroid_dodge"
 
@@ -156,7 +158,9 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
     val useNavRail = maxWidth >= 600.dp
 
     val isFullScreenCockpit =
-      currentRoute == ROUTE_FIRST_PERSON_SIM || currentRoute == ROUTE_ASTEROID_DODGE
+      currentRoute == ROUTE_FIRST_PERSON_SIM ||
+        currentRoute == ROUTE_ASTEROID_DODGE ||
+        currentRoute?.startsWith("surface_explore") == true
 
     Scaffold(
       containerColor = SpaceVoid,
@@ -340,6 +344,9 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 onOpenLandingSimulator = { targetId ->
                   navController.navigate("landing_sim/$targetId")
                 },
+                onOpenSurfaceExploration = { targetId ->
+                  navController.navigate("surface_explore/$targetId")
+                },
               )
             }
 
@@ -353,6 +360,22 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 chibiProfile = chibiProfile,
                 onMarkExplored = viewModel::markPlanetExplored,
                 onBack = { navController.popBackStack() },
+                onStartSurfaceExploration = { targetId ->
+                  navController.navigate("surface_explore/$targetId")
+                },
+              )
+            }
+
+            composable(
+              route = ROUTE_SURFACE_EXPLORE,
+              arguments = listOf(navArgument("planetId") { type = NavType.StringType }),
+            ) { backStackEntry ->
+              val planetId = backStackEntry.arguments?.getString("planetId") ?: "moon"
+              SurfaceExplorationScreen(
+                planetId = planetId,
+                chibiProfile = chibiProfile,
+                onExitExploration = { navController.popBackStack() },
+                onMarkPlanetExplored = viewModel::markPlanetExplored,
               )
             }
 
