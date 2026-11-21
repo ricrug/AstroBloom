@@ -3,6 +3,8 @@
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +26,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.LocalGasStation
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RocketLaunch
@@ -61,9 +65,13 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ricrug.data.SolarSystemData
 import com.ricrug.model.CelestialBody
 import com.ricrug.model.ChibiExpression
@@ -82,7 +90,9 @@ import com.ricrug.ui.theme.StarlightMuted
 import com.ricrug.ui.theme.StarlightWhite
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -203,6 +213,12 @@ fun LandingSimulatorScreen(
 
   val currentSpeedMs = (vy * 100f).roundToInt().coerceAtLeast(0)
   val altitudeMeters = (((surfaceY - landerY) / (surfaceY - 0.12f)) * 420f).roundToInt().coerceAtLeast(0)
+  val tiltDeg =
+    when {
+      thrustLeft && !thrustRight -> -14f
+      thrustRight && !thrustLeft -> 14f
+      else -> (vx * 28f).coerceIn(-12f, 12f)
+    }
 
   Column(
     modifier = modifier.fillMaxSize().background(SpaceVoid),
@@ -305,12 +321,6 @@ fun LandingSimulatorScreen(
 
         val lx = landerX * size.width
         val ly = landerY * size.height
-        val tiltDeg =
-          when {
-            thrustLeft && !thrustRight -> -14f
-            thrustRight && !thrustLeft -> 14f
-            else -> (vx * 28f).coerceIn(-12f, 12f)
-          }
 
         drawLanderModule(
           center = Offset(lx, ly - 16f),
@@ -463,38 +473,21 @@ fun LandingSimulatorScreen(
       }
     }
 
-    // Bottom Thruster Controls
+    // Bottom Aerospace Flight Control Console
     Surface(
       color = SpaceNavy,
       modifier = Modifier.fillMaxWidth(),
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        HoldControlButton(
-          label = "SINISTRA",
-          icon = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-          activeColor = CosmicCyan,
-          onPressChange = { thrustLeft = it },
-          modifier = Modifier.weight(1f).testTag("lander_left_button"),
-        )
-        HoldControlButton(
-          label = "FRENO SU",
-          icon = Icons.Rounded.ArrowUpward,
-          activeColor = CosmicAmber,
-          onPressChange = { thrustUp = it },
-          modifier = Modifier.weight(1.35f).testTag("lander_thrust_button"),
-        )
-        HoldControlButton(
-          label = "DESTRA",
-          icon = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-          activeColor = CosmicCyan,
-          onPressChange = { thrustRight = it },
-          modifier = Modifier.weight(1f).testTag("lander_right_button"),
-        )
-      }
+      LanderFlightConsole(
+        thrustLeft = thrustLeft,
+        thrustRight = thrustRight,
+        thrustUp = thrustUp,
+        currentSpeedMs = currentSpeedMs,
+        tiltDeg = tiltDeg,
+        onThrustLeftChange = { thrustLeft = it },
+        onThrustRightChange = { thrustRight = it },
+        onThrustUpChange = { thrustUp = it },
+      )
     }
   }
 }
@@ -502,49 +495,802 @@ fun LandingSimulatorScreen(
 private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
 @Composable
-private fun HoldControlButton(
-  label: String,
-  icon: androidx.compose.ui.graphics.vector.ImageVector,
-  activeColor: Color,
-  onPressChange: (Boolean) -> Unit,
+private fun LanderFlightConsole(
+  thrustLeft: Boolean,
+  thrustRight: Boolean,
+  thrustUp: Boolean,
+  currentSpeedMs: Int,
+  tiltDeg: Float,
+  onThrustLeftChange: (Boolean) -> Unit,
+  onThrustRightChange: (Boolean) -> Unit,
+  onThrustUpChange: (Boolean) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  var pressed by remember { mutableStateOf(false) }
+  var controlMode by remember { mutableIntStateOf(0) } // 0: CLOCHE 3D, 1: D-PAD
+  var stickThrustUp by remember { mutableStateOf(false) }
+  var leverThrustUp by remember { mutableStateOf(false) }
 
-  Surface(
-    color = if (pressed) activeColor else SpaceCard,
-    shape = RoundedCornerShape(18.dp),
-    border = BorderStroke(2.dp, if (pressed) ComicInk else activeColor.copy(alpha = 0.7f)),
-    modifier =
-      modifier.height(64.dp)
+  LaunchedEffect(stickThrustUp, leverThrustUp) {
+    onThrustUpChange(stickThrustUp || leverThrustUp)
+  }
+
+  Column(
+    modifier = modifier
+      .fillMaxWidth()
+      .background(
+        Brush.verticalGradient(
+          listOf(
+            SpaceNavy,
+            Color(0xFF070B18),
+          )
+        )
+      )
+      .padding(horizontal = 10.dp, vertical = 6.dp),
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    // Top Mini Bar: Selettore Modalità Cloche/D-Pad + Titolo Console
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Surface(
+          onClick = { controlMode = 0 },
+          color = if (controlMode == 0) CosmicCyan.copy(alpha = 0.32f) else SpaceCard,
+          shape = RoundedCornerShape(6.dp),
+          border = BorderStroke(1.dp, if (controlMode == 0) CosmicCyan else Color.Transparent),
+          modifier = Modifier.height(20.dp),
+        ) {
+          Text(
+            text = "CLOCHE",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+            color = if (controlMode == 0) StarlightWhite else StarlightMuted,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+        Surface(
+          onClick = { controlMode = 1 },
+          color = if (controlMode == 1) AuroraGreen.copy(alpha = 0.32f) else SpaceCard,
+          shape = RoundedCornerShape(6.dp),
+          border = BorderStroke(1.dp, if (controlMode == 1) AuroraGreen else Color.Transparent),
+          modifier = Modifier.height(20.dp),
+        ) {
+          Text(
+            text = "D-PAD",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+            color = if (controlMode == 1) StarlightWhite else StarlightMuted,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+      }
+
+      Text(
+        text = "CONSOLE DISCESA • 104DP",
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+        color = CosmicCyan.copy(alpha = 0.75f),
+        maxLines = 1,
+        softWrap = false,
+      )
+
+      Text(
+        text = "LEVA FRENO A MOLLA ▶",
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+        color = CosmicAmber.copy(alpha = 0.9f),
+        maxLines = 1,
+        softWrap = false,
+      )
+    }
+
+    // Main Control Bar: [Pad SX 104dp] + [Dashboard Assetto 104dp] + [Leva Freno DX 104dp]
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      // Pad SX di Pilotaggio Discesa (104dp)
+      LanderFlightStickPad(
+        controlMode = controlMode,
+        thrustLeft = thrustLeft,
+        thrustRight = thrustRight,
+        onThrustLeftChange = onThrustLeftChange,
+        onThrustRightChange = onThrustRightChange,
+        onThrustUpChange = { stickThrustUp = it },
+      )
+
+      // Dashboard Centrale Assetto e Tachimetro (104dp)
+      LanderAttitudeDashboard(
+        currentSpeedMs = currentSpeedMs,
+        tiltDeg = tiltDeg,
+        thrustLeft = thrustLeft,
+        thrustRight = thrustRight,
+        thrustUp = thrustUp,
+        modifier = Modifier.weight(1f),
+      )
+
+      // Leva Verticale del Freno con ritorno automatico a molla (104dp x 68dp)
+      LanderMainThrustLever(
+        thrustUp = thrustUp,
+        onThrustUpChange = { leverThrustUp = it },
+      )
+    }
+  }
+}
+
+@Composable
+private fun LanderFlightStickPad(
+  controlMode: Int,
+  thrustLeft: Boolean,
+  thrustRight: Boolean,
+  onThrustLeftChange: (Boolean) -> Unit,
+  onThrustRightChange: (Boolean) -> Unit,
+  onThrustUpChange: (Boolean) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val density = LocalDensity.current
+  val joyBoxSizeDp = 104.dp
+  val joyBoxPx = with(density) { joyBoxSizeDp.toPx() }
+  val centerPx = joyBoxPx / 2f
+  val maxRadiusPx = joyBoxPx * 0.42f
+  val deadzonePx = with(density) { 5.dp.toPx() }
+
+  var stickX by remember { mutableFloatStateOf(0f) }
+  var stickY by remember { mutableFloatStateOf(0f) }
+  val isStickActive = abs(stickX) > 0.02f || abs(stickY) > 0.02f
+
+  fun updateStick(pos: Offset) {
+    val dx = pos.x - centerPx
+    val dy = pos.y - centerPx
+    val dist = hypot(dx, dy)
+    if (dist > deadzonePx) {
+      val norm = ((dist - deadzonePx) / (maxRadiusPx - deadzonePx)).coerceIn(0f, 1f)
+      val curved = (norm * norm * 0.75f + norm * 0.25f).coerceIn(0f, 1f)
+      val ang = atan2(dy, dx)
+      stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
+      stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
+    } else {
+      stickX = 0f
+      stickY = 0f
+    }
+    onThrustLeftChange(stickX < -0.18f)
+    onThrustRightChange(stickX > 0.18f)
+    onThrustUpChange(stickY < -0.22f)
+  }
+
+  fun resetStick() {
+    stickX = 0f
+    stickY = 0f
+    onThrustLeftChange(false)
+    onThrustRightChange(false)
+    onThrustUpChange(false)
+  }
+
+  if (controlMode == 0) {
+    // MODALITÀ 0: CLOCHE 3D ANALOGICA CON RITORNO A MOLLA (104dp)
+    Box(
+      modifier = modifier
+        .size(joyBoxSizeDp)
+        .background(Color(0xD90A1128), CircleShape)
+        .border(
+          2.dp,
+          Brush.radialGradient(
+            listOf(
+              if (isStickActive) CosmicAmber else CosmicCyan,
+              Color(0xFF14203D),
+            )
+          ),
+          CircleShape,
+        )
         .pointerInput(Unit) {
           detectTapGestures(
-            onPress = {
-              pressed = true
-              onPressChange(true)
+            onPress = { offset ->
+              updateStick(offset)
               tryAwaitRelease()
-              pressed = false
-              onPressChange(false)
-            },
+              resetStick()
+            }
           )
-        },
+        }
+        .pointerInput(Unit) {
+          detectDragGestures(
+            onDragStart = { offset -> updateStick(offset) },
+            onDragEnd = { resetStick() },
+            onDragCancel = { resetStick() },
+          ) { change, _ ->
+            change.consume()
+            updateStick(change.position)
+          }
+        }
+        .testTag("cockpit_flight_stick"),
+      contentAlignment = Alignment.Center,
+    ) {
+      Canvas(modifier = Modifier.fillMaxSize()) {
+        val c = Offset(size.width / 2f, size.height / 2f)
+
+        // Cerchi concentrici al neon e mirino
+        drawCircle(
+          color = CosmicCyan.copy(alpha = if (isStickActive) 0.65f else 0.25f),
+          radius = size.minDimension * 0.46f,
+          style = Stroke(width = if (isStickActive) 2.2f else 1.6f),
+        )
+        drawCircle(
+          color = CosmicCyan.copy(alpha = 0.16f),
+          radius = size.minDimension * 0.24f,
+          style = Stroke(width = 1f),
+        )
+        drawLine(
+          color = CosmicCyan.copy(alpha = 0.35f),
+          start = Offset(c.x - 10f, c.y),
+          end = Offset(c.x + 10f, c.y),
+          strokeWidth = 1.2f,
+        )
+        drawLine(
+          color = CosmicCyan.copy(alpha = 0.35f),
+          start = Offset(c.x, c.y - 10f),
+          end = Offset(c.x, c.y + 10f),
+          strokeWidth = 1.2f,
+        )
+
+        // Frecce guida con retroilluminazione attiva
+        val upColor = if (stickY < -0.22f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+        val leftColor = if (thrustLeft || stickX < -0.18f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+        val rightColor = if (thrustRight || stickX > 0.18f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+
+        drawLine(color = upColor, start = Offset(c.x, 5f), end = Offset(c.x, 14f), strokeWidth = if (stickY < -0.22f) 3f else 1.8f)
+        drawLine(color = leftColor, start = Offset(5f, c.y), end = Offset(14f, c.y), strokeWidth = if (thrustLeft) 3f else 1.8f)
+        drawLine(color = rightColor, start = Offset(size.width - 5f, c.y), end = Offset(size.width - 14f, c.y), strokeWidth = if (thrustRight) 3f else 1.8f)
+
+        // Raggio laser dinamico di forza
+        val knob = Offset(c.x + stickX * maxRadiusPx, c.y + stickY * maxRadiusPx)
+        if (isStickActive) {
+          drawLine(
+            color = CosmicCyan.copy(alpha = 0.70f),
+            start = c,
+            end = knob,
+            strokeWidth = 2.6f,
+          )
+        }
+
+        // Manopola cloche tridimensionale
+        drawCircle(
+          brush = Brush.radialGradient(
+            listOf(
+              if (isStickActive) CosmicAmber else Color(0xFFFFB703),
+              Color(0xFFE76F51),
+            )
+          ),
+          radius = 15.dp.toPx(),
+          center = knob,
+        )
+        drawCircle(
+          color = ComicInk,
+          radius = 15.dp.toPx(),
+          center = knob,
+          style = Stroke(width = 2.2f),
+        )
+        drawCircle(
+          color = StarlightWhite,
+          radius = 3.dp.toPx(),
+          center = Offset(knob.x - 3.dp.toPx(), knob.y - 3.dp.toPx()),
+        )
+      }
+
+      // Nodi semantici accessibili per i test automatici
+      Box(
+        modifier = Modifier
+          .size(1.dp)
+          .align(Alignment.CenterStart)
+          .testTag("lander_left_button")
+          .semantics {
+            onClick {
+              onThrustLeftChange(true)
+              true
+            }
+          },
+      )
+      Box(
+        modifier = Modifier
+          .size(1.dp)
+          .align(Alignment.CenterEnd)
+          .testTag("lander_right_button")
+          .semantics {
+            onClick {
+              onThrustRightChange(true)
+              true
+            }
+          },
+      )
+    }
+  } else {
+    // MODALITÀ 1: D-PAD TATTICO (104dp)
+    Box(
+      modifier = modifier
+        .size(joyBoxSizeDp)
+        .background(Color(0xD90A1128), RoundedCornerShape(16.dp))
+        .border(2.dp, Brush.radialGradient(listOf(AuroraGreen, Color(0xFF14203D))), RoundedCornerShape(16.dp))
+        .testTag("cockpit_flight_dpad"),
+      contentAlignment = Alignment.Center,
+    ) {
+      // Pulsante FRENO SU
+      Surface(
+        color = if (stickY < -0.2f) CosmicAmber else SpaceCard,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.2.dp, if (stickY < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+        modifier = Modifier
+          .align(Alignment.TopCenter)
+          .padding(top = 4.dp)
+          .size(width = 48.dp, height = 30.dp)
+          .pointerInput(Unit) {
+            detectTapGestures(
+              onPress = {
+                onThrustUpChange(true)
+                tryAwaitRelease()
+                onThrustUpChange(false)
+              }
+            )
+          },
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Text(
+            "▲ FRENO",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.5.sp, fontWeight = FontWeight.Bold),
+            color = StarlightWhite,
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+      }
+
+      // Pulsante SX (Vira a Sinistra)
+      Surface(
+        color = if (thrustLeft) CosmicAmber else SpaceCard,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.2.dp, if (thrustLeft) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+        modifier = Modifier
+          .align(Alignment.CenterStart)
+          .padding(start = 4.dp)
+          .size(width = 38.dp, height = 40.dp)
+          .testTag("lander_left_button")
+          .pointerInput(Unit) {
+            detectTapGestures(
+              onPress = {
+                onThrustLeftChange(true)
+                tryAwaitRelease()
+                onThrustLeftChange(false)
+              }
+            )
+          },
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Text(
+            "◀ SX",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+            color = StarlightWhite,
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+      }
+
+      // Pulsante DX (Vira a Destra)
+      Surface(
+        color = if (thrustRight) CosmicAmber else SpaceCard,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.2.dp, if (thrustRight) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+        modifier = Modifier
+          .align(Alignment.CenterEnd)
+          .padding(end = 4.dp)
+          .size(width = 38.dp, height = 40.dp)
+          .testTag("lander_right_button")
+          .pointerInput(Unit) {
+            detectTapGestures(
+              onPress = {
+                onThrustRightChange(true)
+                tryAwaitRelease()
+                onThrustRightChange(false)
+              }
+            )
+          },
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Text(
+            "DX ▶",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+            color = StarlightWhite,
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+      }
+
+      // Icona centrale D-Pad
+      Box(
+        modifier = Modifier
+          .size(20.dp)
+          .background(Color(0xFF0F1A35), CircleShape)
+          .border(1.dp, AuroraGreen.copy(alpha = 0.6f), CircleShape),
+        contentAlignment = Alignment.Center,
+      ) {
+        Icon(
+          Icons.Rounded.CenterFocusStrong,
+          contentDescription = null,
+          tint = AuroraGreen,
+          modifier = Modifier.size(12.dp),
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun LanderAttitudeDashboard(
+  currentSpeedMs: Int,
+  tiltDeg: Float,
+  thrustLeft: Boolean,
+  thrustRight: Boolean,
+  thrustUp: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val speedColor =
+    when {
+      currentSpeedMs <= 22 -> AuroraGreen
+      currentSpeedMs <= 26 -> CosmicAmber
+      else -> NebulaMagenta
+    }
+
+  Surface(
+    color = Color(0xD90A1128),
+    shape = RoundedCornerShape(12.dp),
+    border = BorderStroke(1.5.dp, Brush.verticalGradient(listOf(CosmicCyan.copy(alpha = 0.7f), Color(0xFF14203D)))),
+    modifier = modifier.height(104.dp),
   ) {
     Column(
-      modifier = Modifier.fillMaxSize(),
-      verticalArrangement = Arrangement.Center,
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 6.dp, vertical = 5.dp),
+      verticalArrangement = Arrangement.SpaceBetween,
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-      Icon(
-        imageVector = icon,
-        contentDescription = label,
-        tint = if (pressed) ComicInk else activeColor,
-        modifier = Modifier.size(26.dp),
+      // Header: Titolo con valore numerico inclinazione
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = "ORIZZONTE",
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+          color = CosmicCyan,
+          maxLines = 1,
+          softWrap = false,
+        )
+        val tiltRounded = tiltDeg.roundToInt()
+        val tiltLabel = when {
+          tiltRounded < -2 -> "${abs(tiltRounded)}° SX"
+          tiltRounded > 2 -> "${tiltRounded}° DX"
+          else -> "0° RETTO"
+        }
+        Text(
+          text = tiltLabel,
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+          color = if (abs(tiltRounded) > 10) NebulaMagenta else AuroraGreen,
+          maxLines = 1,
+          softWrap = false,
+        )
+      }
+
+      // Middle: Giroscopio Orizzonte Artificiale in tempo reale
+      Canvas(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(44.dp)
+          .clip(RoundedCornerShape(6.dp))
+          .background(Color(0xFF090E1F))
+      ) {
+        val w = size.width
+        val h = size.height
+        val c = Offset(w / 2f, h / 2f)
+
+        // Orizzonte rotante secondo tiltDeg
+        rotate(degrees = -tiltDeg, pivot = c) {
+          // Cielo / Suolo
+          drawRect(
+            color = CosmicCyan.copy(alpha = 0.12f),
+            topLeft = Offset(0f, 0f),
+            size = Size(w, c.y),
+          )
+          drawRect(
+            color = CosmicAmber.copy(alpha = 0.12f),
+            topLeft = Offset(0f, c.y),
+            size = Size(w, h - c.y),
+          )
+
+          // Linea d'orizzonte
+          drawLine(
+            color = CosmicCyan,
+            start = Offset(4f, c.y),
+            end = Offset(w - 4f, c.y),
+            strokeWidth = 1.8f,
+          )
+
+          // Tacche pitch ladder
+          drawLine(
+            color = CosmicCyan.copy(alpha = 0.45f),
+            start = Offset(c.x - 12f, c.y - 11f),
+            end = Offset(c.x + 12f, c.y - 11f),
+            strokeWidth = 1f,
+          )
+          drawLine(
+            color = CosmicCyan.copy(alpha = 0.45f),
+            start = Offset(c.x - 12f, c.y + 11f),
+            end = Offset(c.x + 12f, c.y + 11f),
+            strokeWidth = 1f,
+          )
+        }
+
+        // Sagoma fissa del lander al centro
+        drawLine(
+          color = CosmicAmber,
+          start = Offset(c.x - 12f, c.y),
+          end = Offset(c.x - 4f, c.y),
+          strokeWidth = 2.2f,
+        )
+        drawLine(
+          color = CosmicAmber,
+          start = Offset(c.x + 4f, c.y),
+          end = Offset(c.x + 12f, c.y),
+          strokeWidth = 2.2f,
+        )
+        drawCircle(
+          color = CosmicAmber,
+          radius = 2.2f,
+          center = c,
+        )
+      }
+
+      // Bottom Row: Telemetria RCS & Tachimetro Discesa
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        // RCS SX LED
+        Surface(
+          color = if (thrustLeft) CosmicAmber.copy(alpha = 0.35f) else SpaceCard,
+          shape = RoundedCornerShape(4.dp),
+          border = BorderStroke(1.dp, if (thrustLeft) CosmicAmber else Color(0x3300F5D4)),
+          modifier = Modifier.height(18.dp),
+        ) {
+          Text(
+            text = "◀ RCS",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+            color = if (thrustLeft) CosmicAmber else StarlightMuted,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+
+        // Speed badge
+        Surface(
+          color = speedColor.copy(alpha = 0.22f),
+          shape = RoundedCornerShape(4.dp),
+          border = BorderStroke(1.dp, speedColor),
+          modifier = Modifier.height(18.dp),
+        ) {
+          Text(
+            text = "$currentSpeedMs m/s",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+            color = speedColor,
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+
+        // RCS DX LED
+        Surface(
+          color = if (thrustRight) CosmicAmber.copy(alpha = 0.35f) else SpaceCard,
+          shape = RoundedCornerShape(4.dp),
+          border = BorderStroke(1.dp, if (thrustRight) CosmicAmber else Color(0x3300F5D4)),
+          modifier = Modifier.height(18.dp),
+        ) {
+          Text(
+            text = "RCS ▶",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+            color = if (thrustRight) CosmicAmber else StarlightMuted,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            maxLines = 1,
+            softWrap = false,
+          )
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun LanderMainThrustLever(
+  thrustUp: Boolean,
+  onThrustUpChange: (Boolean) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val density = LocalDensity.current
+  val leverWidthDp = 68.dp
+  val leverHeightDp = 104.dp
+  val leverHeightPx = with(density) { leverHeightDp.toPx() }
+
+  var leverNorm by remember { mutableFloatStateOf(0f) }
+
+  fun updateFromY(yPx: Float) {
+    val normY = (yPx / leverHeightPx).coerceIn(0f, 1f)
+    leverNorm = (1f - normY).coerceIn(0f, 1f)
+    onThrustUpChange(leverNorm > 0.08f)
+  }
+
+  fun resetLever() {
+    leverNorm = 0f
+    onThrustUpChange(false)
+  }
+
+  Box(
+    modifier = modifier
+      .size(width = leverWidthDp, height = leverHeightDp)
+      .background(Color(0xD90A1128), RoundedCornerShape(12.dp))
+      .border(
+        1.5.dp,
+        Brush.verticalGradient(
+          listOf(
+            NebulaMagenta,
+            CosmicAmber,
+            CosmicCyan,
+          )
+        ),
+        RoundedCornerShape(12.dp),
       )
+      .pointerInput(Unit) {
+        detectTapGestures(
+          onPress = { offset ->
+            updateFromY(offset.y)
+            tryAwaitRelease()
+            resetLever()
+          }
+        )
+      }
+      .pointerInput(Unit) {
+        detectDragGestures(
+          onDragStart = { offset -> updateFromY(offset.y) },
+          onDragEnd = { resetLever() },
+          onDragCancel = { resetLever() },
+        ) { change, _ ->
+          change.consume()
+          updateFromY(change.position.y)
+        }
+      }
+      .semantics {
+        onClick {
+          onThrustUpChange(true)
+          true
+        }
+      }
+      .testTag("lander_thrust_button"),
+    contentAlignment = Alignment.Center,
+  ) {
+    Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 5.dp, vertical = 6.dp)) {
+      val w = size.width
+      val h = size.height
+
+      // Binario scanalato di scorrimento verticale
+      val trackX = w * 0.30f
+      val trackW = 8.dp.toPx()
+      drawRoundRect(
+        color = Color(0xFF070B16),
+        topLeft = Offset(trackX - trackW / 2f, 0f),
+        size = Size(trackW, h),
+        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+      )
+      drawRoundRect(
+        color = CosmicCyan.copy(alpha = 0.35f),
+        topLeft = Offset(trackX - trackW / 2f, 0f),
+        size = Size(trackW, h),
+        cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+        style = Stroke(width = 1f),
+      )
+
+      // Plume fiammeggiante nel binario quando il propulsore è acceso
+      val effectiveNorm = if (thrustUp && leverNorm < 0.2f) 0.85f else leverNorm
+      if (effectiveNorm > 0.05f) {
+        val plumeHeight = h * effectiveNorm
+        drawRoundRect(
+          brush = Brush.verticalGradient(
+            listOf(
+              CosmicAmber,
+              Color(0xFFFFB703),
+              NebulaMagenta.copy(alpha = 0.4f),
+            ),
+            startY = h - plumeHeight,
+            endY = h,
+          ),
+          topLeft = Offset(trackX - trackW / 2f + 1f, h - plumeHeight),
+          size = Size(trackW - 2f, plumeHeight),
+          cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx()),
+        )
+      }
+
+      // Tacche di graduazione lungo il lato destro
+      val stepCount = 4
+      for (i in 0..stepCount) {
+        val tickY = (h / stepCount) * i
+        val isZero = i == stepCount
+        val tickW = if (isZero) 10.dp.toPx() else 6.dp.toPx()
+        drawLine(
+          color = if (isZero) CosmicCyan else CosmicAmber.copy(alpha = 0.6f),
+          start = Offset(trackX + trackW / 2f + 3f, tickY),
+          end = Offset(trackX + trackW / 2f + 3f + tickW, tickY),
+          strokeWidth = if (isZero) 1.5f else 1f,
+        )
+      }
+
+      // Manopola 3D della Leva ergonomica
+      val knobY = (h * (1f - effectiveNorm)).coerceIn(10.dp.toPx(), h - 10.dp.toPx())
+      val knobW = w * 0.72f
+      val knobH = 18.dp.toPx()
+      val knobX = trackX - knobW * 0.35f
+
+      // Ombra e bordo della manopola
+      drawRoundRect(
+        color = ComicInk,
+        topLeft = Offset(knobX - 1f, knobY - knobH / 2f - 1f),
+        size = Size(knobW + 2f, knobH + 2f),
+        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
+      )
+
+      // Corpo metallico / ambra della manopola
+      drawRoundRect(
+        brush = Brush.verticalGradient(
+          listOf(
+            if (effectiveNorm > 0.05f) CosmicAmber else Color(0xFF6B7280),
+            if (effectiveNorm > 0.05f) Color(0xFFD97706) else Color(0xFF374151),
+          )
+        ),
+        topLeft = Offset(knobX, knobY - knobH / 2f),
+        size = Size(knobW, knobH),
+        cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx()),
+      )
+
+      // Scanalature antiscivolo
+      val ridgeColor = if (effectiveNorm > 0.05f) StarlightWhite.copy(alpha = 0.5f) else Color(0xFF9CA3AF)
+      drawLine(
+        color = ridgeColor,
+        start = Offset(knobX + 6.dp.toPx(), knobY - 3.dp.toPx()),
+        end = Offset(knobX + knobW - 6.dp.toPx(), knobY - 3.dp.toPx()),
+        strokeWidth = 1.2f,
+      )
+      drawLine(
+        color = ridgeColor,
+        start = Offset(knobX + 6.dp.toPx(), knobY + 3.dp.toPx()),
+        end = Offset(knobX + knobW - 6.dp.toPx(), knobY + 3.dp.toPx()),
+        strokeWidth = 1.2f,
+      )
+    }
+
+    // Etichetta del freno
+    Column(
+      modifier = Modifier
+        .align(Alignment.BottomEnd)
+        .padding(end = 4.dp, bottom = 4.dp),
+      horizontalAlignment = Alignment.End,
+    ) {
       Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        color = if (pressed) ComicInk else StarlightWhite,
+        text = "FRENO",
+        style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.sp, fontWeight = FontWeight.Bold),
+        color = if (thrustUp) CosmicAmber else StarlightMuted,
         maxLines = 1,
         softWrap = false,
       )
