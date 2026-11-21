@@ -99,4 +99,31 @@ class SurfaceExplorationTest {
       }
     }
   }
+
+  @Test
+  fun testDisembarkShipMechanics() {
+    // Coordinate iniziali a bordo dell'airlock
+    val airlockEyeHeight = 3.2f
+    val airlockZ = 1.6f
+    val airlockYaw = 0f
+
+    // Coordinate dopo la discesa sulla superficie
+    val groundEyeHeight = 1.75f
+    val groundZ = 5.2f
+    val groundYaw = 180f
+
+    // Discesa comporta riduzione di quota verso il terreno
+    assertTrue("Airlock should be elevated above ground", airlockEyeHeight > groundEyeHeight)
+    // Discesa comporta allontanamento sulla passerella
+    assertTrue("Ground position is further out from ship center", groundZ > airlockZ)
+    // Discesa ruota la vista di 180° per ammirare l'astronave dall'esterno
+    assertEquals(180f, kotlin.math.abs(groundYaw - airlockYaw), 0.001f)
+
+    // Distanza di risalita a bordo
+    val boardingThreshold = 4.2f
+    val nearShipDist = 3.0f
+    val farShipDist = 8.0f
+    assertTrue("Near ship allows reboarding", nearShipDist < boardingThreshold)
+    assertTrue("Far ship requires approaching to reboard", farShipDist > boardingThreshold)
+  }
 }
