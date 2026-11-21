@@ -427,14 +427,14 @@ fun FirstPersonFlightSimulator3D(
           shipForward = fwd
           shipUp = up
 
-          val maxForwardSpeed = if (boostActive) 220f else 135f
+          val maxForwardSpeed = if (boostActive) 240f else 145f
           val targetSpeed = throttle * maxForwardSpeed
-          // Active damping when throttle is 0 so the ship comes to a complete rest
+          // Arresto istantaneo e frenata attiva quando la leva torna a zero (pollice sollevato)
           if (abs(throttle) < 0.02f) {
-            currentSpeed += (0f - currentSpeed) * (dt * 6.5f).coerceAtMost(1f)
-            if (abs(currentSpeed) < 0.08f) currentSpeed = 0f
+            currentSpeed += (0f - currentSpeed) * (dt * 24.0f).coerceAtMost(1f)
+            if (abs(currentSpeed) < 0.10f) currentSpeed = 0f
           } else {
-            currentSpeed += (targetSpeed - currentSpeed) * (dt * 4.5f).coerceAtMost(1f)
+            currentSpeed += (targetSpeed - currentSpeed) * (dt * 6.0f).coerceAtMost(1f)
           }
 
           if (abs(currentSpeed) > 0.005f) {
@@ -1859,23 +1859,31 @@ fun FirstPersonFlightSimulator3D(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            // Manetta Verticale con mantenimento velocita di crociera al rilascio
-            val leverHeightDp = 86.dp
-            val leverWidthDp = 50.dp
-            val zeroRatio = 0.72f // La linea 0% e al 72% dall'alto (spinta avanti sopra, retro sotto)
+            // Leva Velocità con ritorno automatico a zero (Dead-Man's Throttle Lever)
+            // Se il pollice destro viene sollevato, la leva scatta a zero e ferma immediatamente l'astronave
+            val leverHeightDp = 92.dp
+            val leverWidthDp = 52.dp
+            val zeroRatio = 0.68f // La linea 0% (Neutro/Fermo) e al 68% dall'alto (spinta in alto, retro in basso)
+            val leverHeightPx = with(density) { leverHeightDp.toPx() }
 
-            fun updateThrottleFromY(yPx: Float, totalHPx: Float) {
-              val normY = (yPx / totalHPx).coerceIn(0f, 1f)
+            fun updateThrottleFromY(yPx: Float) {
+              val normY = (yPx / leverHeightPx).coerceIn(0f, 1f)
               throttle = if (normY <= zeroRatio) {
                 val fwd = (zeroRatio - normY) / zeroRatio
                 fwd.coerceIn(0f, 1f)
               } else {
                 val rev = (normY - zeroRatio) / (1f - zeroRatio)
-                (-rev * 0.35f).coerceIn(-0.35f, 0f)
+                (-rev * 0.40f).coerceIn(-0.40f, 0f)
               }
               if (boostActive && throttle < 0.95f) {
                 boostActive = false
               }
+            }
+
+            fun stopAndResetThrottle() {
+              throttle = 0f
+              currentSpeed = 0f
+              boostActive = false
             }
 
             Box(
@@ -1884,22 +1892,22 @@ fun FirstPersonFlightSimulator3D(
                 .background(Color(0xD90A1128), RoundedCornerShape(12.dp))
                 .border(1.5.dp, Brush.verticalGradient(listOf(NebulaMagenta, CosmicCyan, CosmicAmber)), RoundedCornerShape(12.dp))
                 .pointerInput(Unit) {
-                  detectTapGestures { offset ->
-                    updateThrottleFromY(offset.y, size.height.toFloat())
-                  }
+                  detectTapGestures(
+                    onPress = { offset ->
+                      updateThrottleFromY(offset.y)
+                      tryAwaitRelease()
+                      stopAndResetThrottle()
+                    }
+                  )
                 }
                 .pointerInput(Unit) {
-                  detectDragGestures { change, dragAmount ->
+                  detectDragGestures(
+                    onDragStart = { offset -> updateThrottleFromY(offset.y) },
+                    onDragEnd = { stopAndResetThrottle() },
+                    onDragCancel = { stopAndResetThrottle() },
+                  ) { change, _ ->
                     change.consume()
-                    val newY = with(density) {
-                      val currentY = if (throttle >= 0f) {
-                        (zeroRatio - throttle * zeroRatio) * leverHeightDp.toPx()
-                      } else {
-                        (zeroRatio + (-throttle / 0.35f) * (1f - zeroRatio)) * leverHeightDp.toPx()
-                      }
-                      currentY + dragAmount.y
-                    }
-                    updateThrottleFromY(newY, size.height.toFloat())
+                    updateThrottleFromY(change.position.y)
                   }
                 }
                 .testTag("cockpit_cruise_button"),
@@ -2072,9 +2080,9 @@ fun FirstPersonFlightSimulator3D(
           val throttlePct = (throttle * 100f).roundToInt()
           val modeLabel = when {
             boostActive -> "WARP 100%"
-            throttlePct > 0 -> "SPINTA $throttlePct%"
-            throttlePct < 0 -> "RETRO $throttlePct%"
-            else -> "FERMO 0%"
+            throttlePct > 0 -> "AVANTI $throttlePct%"
+            throttlePct < 0 -> "RETRO ${Math.abs(throttlePct)}%"
+            else -> "FERMO (MOLLA 0%)"
           }
           Text(
             text = modeLabel,
