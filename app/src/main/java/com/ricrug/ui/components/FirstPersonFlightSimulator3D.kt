@@ -284,6 +284,8 @@ fun FirstPersonFlightSimulator3D(
   var stickY by remember { mutableFloatStateOf(0f) }
   // Modalita controller pollice sinistro: 0 = Cloche 3D Analogica, 1 = D-Pad Tasti Direzionali
   var leftControlMode by remember { mutableIntStateOf(0) }
+  // Sensibilita di pilotaggio: 0 = Fine/Precisione (0.50x), 1 = Standard/Media (0.80x), 2 = Agile/Rapida (1.25x)
+  var flightSensitivityMode by remember { mutableIntStateOf(0) }
 
   val sunDist = shipPos.length()
 
@@ -354,32 +356,38 @@ fun FirstPersonFlightSimulator3D(
           val stickMag = hypot(stickX, stickY)
           if (stickMag > 0.02f) {
             isAutopilotSteering = false
-            // Yaw (virata decisa, agile e potente a ~200 deg/s): stickX > 0 (destra) -> vira subito a destra
-            val targetYawVel = -stickX * 3.50f
-            // Pitch (beccheggio potente): Arcade (spingi su = muso in alto) vs Aero (spingi su = picchiata)
-            val pitchFactor = if (invertPitch) 2.85f else -2.85f
+            // Calibrazione sensibilità: 0 = Fine (0.50x), 1 = Standard (0.80x), 2 = Agile (1.25x)
+            val sensFactor = when (flightSensitivityMode) {
+              0 -> 0.50f // Modalità Fine/Precisione: fluida e misurata per centrare i pianeti
+              1 -> 0.80f // Modalità Standard: bilanciata per esplorazione
+              else -> 1.25f // Modalità Agile: virate rapide
+            }
+            // Yaw: ~43°/s in Precisione, ~68°/s in Standard, ~105°/s in Agile (molto più controllabile)
+            val targetYawVel = -stickX * (1.50f * sensFactor)
+            val pitchFactor = if (invertPitch) (1.20f * sensFactor) else -(1.20f * sensFactor)
             val targetPitchVel = stickY * pitchFactor
-            // Smoothing scattante e reattivo a 24f (zero latenza)
-            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 24.0f).coerceAtMost(1f)
-            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 24.0f).coerceAtMost(1f)
+
+            // Inerzia fluida a 12.0f: rotazioni armoniche e stabili senza scatti bruschi
+            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 12.0f).coerceAtMost(1f)
+            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 12.0f).coerceAtMost(1f)
 
             shipHeading += smoothYawVel * dt
             shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
-            // Rollio coordinato in virata naturale e visibile
-            val targetBank = (-stickX * 0.50f) + manualRollOffset
-            shipBank += (targetBank - shipBank) * (dt * 8.5f).coerceAtMost(1f)
+            // Rollio coordinato in virata naturale e armonico
+            val targetBank = (-stickX * (0.35f * sensFactor)) + manualRollOffset
+            shipBank += (targetBank - shipBank) * (dt * 6.5f).coerceAtMost(1f)
           } else {
-            // Arresto rapido e preciso della rotazione al rilascio del pollice
-            smoothYawVel += (0f - smoothYawVel) * (dt * 16.0f).coerceAtMost(1f)
-            smoothPitchVel += (0f - smoothPitchVel) * (dt * 16.0f).coerceAtMost(1f)
-            if (abs(smoothYawVel) < 0.005f) smoothYawVel = 0f
-            if (abs(smoothPitchVel) < 0.005f) smoothPitchVel = 0f
+            // Arresto controllato e preciso al rilascio del pollice
+            smoothYawVel += (0f - smoothYawVel) * (dt * 14.0f).coerceAtMost(1f)
+            smoothPitchVel += (0f - smoothPitchVel) * (dt * 14.0f).coerceAtMost(1f)
+            if (abs(smoothYawVel) < 0.003f) smoothYawVel = 0f
+            if (abs(smoothPitchVel) < 0.003f) smoothPitchVel = 0f
             if (abs(smoothYawVel) > 0.0001f) shipHeading += smoothYawVel * dt
             if (abs(smoothPitchVel) > 0.0001f) shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
             // Auto-leveling orizzontale morbido
-            shipBank += (manualRollOffset - shipBank) * (dt * 7.0f).coerceAtMost(1f)
+            shipBank += (manualRollOffset - shipBank) * (dt * 6.0f).coerceAtMost(1f)
           }
 
           if (isAutopilotSteering && autopilotTargetId != null) {
@@ -470,15 +478,20 @@ fun FirstPersonFlightSimulator3D(
     Canvas(
       modifier =
         Modifier.fillMaxSize()
-          .pointerInput(Unit) {
+          .pointerInput(flightSensitivityMode, invertPitch) {
             detectDragGestures { change, dragAmount ->
               // Gestione panoramica touch: permette di orientare la visuale anche nella baia centrale aperta
               val isSidePodZone = (change.position.x < size.width * 0.22f || change.position.x > size.width * 0.78f) && change.position.y > size.height * 0.62f
               if (!isSidePodZone && change.position.y < size.height * 0.88f) {
                 change.consume()
                 isAutopilotSteering = false
-                shipHeading -= dragAmount.x * 0.0032f
-                shipPitch = (shipPitch - dragAmount.y * 0.0030f).coerceIn(-1.42f, 1.42f)
+                val touchSens = when (flightSensitivityMode) {
+                  0 -> 0.0016f // Modalità Fine: drag controllato e fluido
+                  1 -> 0.0024f
+                  else -> 0.0034f
+                }
+                shipHeading -= dragAmount.x * touchSens
+                shipPitch = (shipPitch - dragAmount.y * (touchSens * (if (invertPitch) -1f else 1f))).coerceIn(-1.42f, 1.42f)
               }
             }
           }
@@ -1711,7 +1724,7 @@ fun FirstPersonFlightSimulator3D(
           val joyBoxPx = with(density) { joyBoxSizeDp.toPx() }
           val centerPx = joyBoxPx / 2f
           val maxRadiusPx = joyBoxPx * 0.42f
-          val deadzonePx = with(density) { 3.dp.toPx() }
+          val deadzonePx = with(density) { 5.dp.toPx() }
           val isStickActive = abs(stickX) > 0.02f || abs(stickY) > 0.02f
 
           fun updateStickPos(touchPos: Offset) {
@@ -1721,7 +1734,8 @@ fun FirstPersonFlightSimulator3D(
             val dist = hypot(dx, dy)
             if (dist > deadzonePx) {
               val norm = ((dist - deadzonePx) / (maxRadiusPx - deadzonePx)).coerceIn(0f, 1f)
-              val curved = norm * (0.65f + 0.35f * norm)
+              // Curva esponenziale progressiva: morbida e micrometrica al centro, decisa al bordo
+              val curved = (norm * norm * 0.75f + norm * 0.25f).coerceIn(0f, 1f)
               val ang = atan2(dy, dx)
               stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
               stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
@@ -1812,20 +1826,26 @@ fun FirstPersonFlightSimulator3D(
                   .testTag("cockpit_flight_dpad"),
               contentAlignment = Alignment.Center,
             ) {
+              val dpadPower = when (flightSensitivityMode) {
+                0 -> 0.40f // Modalità Fine/Precisione: rotazione morbida e calibrata
+                1 -> 0.65f // Modalità Standard
+                else -> 0.90f // Modalità Agile
+              }
+
               // Freccia SU (Cabra)
               Surface(
-                color = if (stickY < -0.3f) CosmicAmber else SpaceCard,
+                color = if (stickY < -0.2f) CosmicAmber else SpaceCard,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.2.dp, if (stickY < -0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                border = BorderStroke(1.2.dp, if (stickY < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
                 modifier = Modifier
                   .align(Alignment.TopCenter)
                   .padding(top = 4.dp)
                   .size(width = 46.dp, height = 30.dp)
-                  .pointerInput(Unit) {
+                  .pointerInput(flightSensitivityMode) {
                     detectTapGestures(
                       onPress = {
                         isAutopilotSteering = false
-                        stickY = -1.0f
+                        stickY = -dpadPower
                         tryAwaitRelease()
                         stickY = 0f
                       }
@@ -1839,18 +1859,18 @@ fun FirstPersonFlightSimulator3D(
 
               // Freccia GIÙ (Picchia)
               Surface(
-                color = if (stickY > 0.3f) CosmicAmber else SpaceCard,
+                color = if (stickY > 0.2f) CosmicAmber else SpaceCard,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.2.dp, if (stickY > 0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                border = BorderStroke(1.2.dp, if (stickY > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
                 modifier = Modifier
                   .align(Alignment.BottomCenter)
                   .padding(bottom = 4.dp)
                   .size(width = 46.dp, height = 30.dp)
-                  .pointerInput(Unit) {
+                  .pointerInput(flightSensitivityMode) {
                     detectTapGestures(
                       onPress = {
                         isAutopilotSteering = false
-                        stickY = 1.0f
+                        stickY = dpadPower
                         tryAwaitRelease()
                         stickY = 0f
                       }
@@ -1864,18 +1884,18 @@ fun FirstPersonFlightSimulator3D(
 
               // Freccia SX (Vira a Sinistra)
               Surface(
-                color = if (stickX < -0.3f) CosmicAmber else SpaceCard,
+                color = if (stickX < -0.2f) CosmicAmber else SpaceCard,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.2.dp, if (stickX < -0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                border = BorderStroke(1.2.dp, if (stickX < -0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
                 modifier = Modifier
                   .align(Alignment.CenterStart)
                   .padding(start = 4.dp)
                   .size(width = 34.dp, height = 40.dp)
-                  .pointerInput(Unit) {
+                  .pointerInput(flightSensitivityMode) {
                     detectTapGestures(
                       onPress = {
                         isAutopilotSteering = false
-                        stickX = -1.0f
+                        stickX = -dpadPower
                         tryAwaitRelease()
                         stickX = 0f
                       }
@@ -1889,18 +1909,18 @@ fun FirstPersonFlightSimulator3D(
 
               // Freccia DX (Vira a Destra)
               Surface(
-                color = if (stickX > 0.3f) CosmicAmber else SpaceCard,
+                color = if (stickX > 0.2f) CosmicAmber else SpaceCard,
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(1.2.dp, if (stickX > 0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                border = BorderStroke(1.2.dp, if (stickX > 0.2f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
                 modifier = Modifier
                   .align(Alignment.CenterEnd)
                   .padding(end = 4.dp)
                   .size(width = 34.dp, height = 40.dp)
-                  .pointerInput(Unit) {
+                  .pointerInput(flightSensitivityMode) {
                     detectTapGestures(
                       onPress = {
                         isAutopilotSteering = false
-                        stickX = 1.0f
+                        stickX = dpadPower
                         tryAwaitRelease()
                         stickX = 0f
                       }
@@ -1934,7 +1954,8 @@ fun FirstPersonFlightSimulator3D(
             val pitchDir = if (stickY < 0f) (if (invertPitch) "GIÙ" else "SU") else (if (invertPitch) "SU" else "GIÙ")
             "$yawDir $yawPct% • $pitchDir $pitchPct%"
           } else {
-            if (leftControlMode == 0) "CLOCHE (PRONTA)" else "D-PAD (PRONTO)"
+            val sensName = when (flightSensitivityMode) { 0 -> "FINE"; 1 -> "MED"; else -> "AGILE" }
+            if (leftControlMode == 0) "CLOCHE ($sensName)" else "D-PAD ($sensName)"
           }
           Text(
             text = stickLabel,
@@ -1942,20 +1963,41 @@ fun FirstPersonFlightSimulator3D(
             color = if (stickMagnitude > 0.04f) AuroraGreen else CosmicCyan,
           )
 
-          // Toggle rapido Pitch (Arcade vs Aero) a portata di pollice sinistro
-          Surface(
-            onClick = { invertPitch = !invertPitch },
-            color = SpaceCard.copy(alpha = 0.75f),
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.4f)),
+          // Toggle rapido Pitch & Sensibilità di Volo a portata di pollice sinistro
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 1.dp),
           ) {
-            Text(
-              text = if (invertPitch) "PITCH: AERO" else "PITCH: ARCADE",
-              style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-              color = if (invertPitch) CosmicAmber else CosmicCyan,
-              modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            )
+            Surface(
+              onClick = { invertPitch = !invertPitch },
+              color = SpaceCard.copy(alpha = 0.75f),
+              shape = RoundedCornerShape(6.dp),
+              border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.4f)),
+              modifier = Modifier.height(20.dp),
+            ) {
+              Text(
+                text = if (invertPitch) "AERO" else "ARCADE",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+                color = if (invertPitch) CosmicAmber else CosmicCyan,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+              )
+            }
+
+            Surface(
+              onClick = { flightSensitivityMode = (flightSensitivityMode + 1) % 3 },
+              color = when (flightSensitivityMode) { 0 -> CosmicCyan.copy(alpha = 0.25f); 1 -> AuroraGreen.copy(alpha = 0.25f); else -> CosmicAmber.copy(alpha = 0.25f) },
+              shape = RoundedCornerShape(6.dp),
+              border = BorderStroke(1.dp, when (flightSensitivityMode) { 0 -> CosmicCyan; 1 -> AuroraGreen; else -> CosmicAmber }),
+              modifier = Modifier.height(20.dp).testTag("cockpit_sensitivity_button"),
+            ) {
+              Text(
+                text = when (flightSensitivityMode) { 0 -> "SENS: FINE"; 1 -> "SENS: MED"; else -> "SENS: MAX" },
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 7.5.sp, fontWeight = FontWeight.Bold),
+                color = when (flightSensitivityMode) { 0 -> CosmicCyan; 1 -> AuroraGreen; else -> CosmicAmber },
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+              )
+            }
           }
         }
       }

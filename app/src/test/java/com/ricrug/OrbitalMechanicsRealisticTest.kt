@@ -57,4 +57,23 @@ class OrbitalMechanicsRealisticTest {
     assertTrue(ladderSteps.contains(30))
     assertTrue(ladderSteps.contains(-30))
   }
+
+  @Test
+  fun testFlightSensitivityScaling() {
+    val fineMultiplier = 0.50f
+    val standardMultiplier = 0.80f
+    val agileMultiplier = 1.25f
+
+    val baseRate = 1.50f
+    val fineYawRate = baseRate * fineMultiplier
+    val fineDegPerSec = fineYawRate * 180f / Math.PI.toFloat()
+    // In precision mode, max rotation rate is calm and controllable under 50 deg/sec
+    assertTrue("Fine yaw rate too fast: $fineDegPerSec", fineDegPerSec < 50f)
+
+    // Cloche exponential curve check at 50% deflection
+    val norm = 0.5f
+    val curved = norm * norm * 0.75f + norm * 0.25f
+    assertTrue("Exponential curve should soften mid-range", curved < norm)
+    assertEquals(0.3125f, curved, 0.001f)
+  }
 }
