@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -1133,6 +1134,159 @@ fun FirstPersonFlightSimulator3D(
       }
     }
 
+    // 4. OLOGRAMMA CO-PILOTA FLUTTUANTE SULLO SCHERMO A DESTRA
+    val hudActionBody =
+      autopilotTargetId?.let { SolarSystemData.getPlanetById(it) }
+        ?: if (nearestDist < nearestBody.sceneVisualRadius * 5.2f + 42f) nearestBody else null
+
+    val (coPilotSpeech, coPilotExpr) = getCockpitCoPilotDialogue(
+      nearestBody = nearestBody,
+      nearestDist = nearestDist,
+      sunDist = sunDist,
+      boostActive = boostActive,
+      throttle = throttle,
+      isAutopilot = isAutopilotSteering,
+      chibiName = chibiProfile.name,
+    )
+
+    Surface(
+      modifier = Modifier
+        .align(Alignment.CenterEnd)
+        .padding(end = 10.dp, top = 20.dp, bottom = 120.dp)
+        .widthIn(max = 240.dp)
+        .testTag("cockpit_copilot_hologram"),
+      color = SpaceCardElevated.copy(alpha = 0.88f),
+      shape = RoundedCornerShape(16.dp),
+      border = BorderStroke(
+        1.5.dp,
+        if (boostActive) NebulaMagenta else if (sunDist < 100f) CosmicAmber else CosmicCyan.copy(alpha = 0.65f),
+      ),
+      shadowElevation = 10.dp,
+    ) {
+      Column(
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+      ) {
+        // Intestazione con Avatar Chibi, Nome e Badge Allerta
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+          ChibiAvatar(
+            profile = chibiProfile,
+            expression = coPilotExpr,
+            size = 36.dp,
+            showBackdrop = false,
+          )
+
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = "CO-PILOTA ${chibiProfile.name.uppercase()}",
+              style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.Bold),
+              color = CosmicAmber,
+            )
+            if (sunDist < 100f) {
+              Surface(
+                color = Color(0xFFFF2A2A),
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.padding(top = 1.dp),
+              ) {
+                Text(
+                  text = "ALLERTA CALORE ☀️",
+                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                  color = StarlightWhite,
+                  modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                )
+              }
+            } else if (nearestDist < 55f) {
+              Surface(
+                color = AuroraGreen,
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.padding(top = 1.dp),
+              ) {
+                Text(
+                  text = "PROSSIMITÀ 🪐",
+                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                  color = ComicInk,
+                  modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                )
+              }
+            }
+          }
+        }
+
+        // Messaggio / Fumetto di Dialogo del Co-Pilota
+        Surface(
+          color = SpaceNavy.copy(alpha = 0.70f),
+          shape = RoundedCornerShape(10.dp),
+          border = BorderStroke(0.8.dp, CosmicCyan.copy(alpha = 0.3f)),
+        ) {
+          Text(
+            text = coPilotSpeech,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
+            color = if (sunDist < 90f) CosmicAmber else StarlightWhite,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+          )
+        }
+
+        // Pulsanti Tattici Azione Rapida Pianeta (Punta, Atterra, Scheda 3D)
+        if (hudActionBody != null) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (autopilotTargetId != null) {
+              Button(
+                onClick = { isAutopilotSteering = !isAutopilotSteering },
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = if (isAutopilotSteering) NebulaMagenta else AuroraGreen,
+                  contentColor = if (isAutopilotSteering) StarlightWhite else ComicInk,
+                ),
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier.height(26.dp).weight(1f),
+              ) {
+                Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, modifier = Modifier.size(11.dp))
+                Spacer(modifier = Modifier.width(2.dp))
+                Text(
+                  text = if (isAutopilotSteering) "Sgancia" else "Punta",
+                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                  fontWeight = FontWeight.Bold,
+                )
+              }
+            }
+            if (hudActionBody.id != "sun") {
+              Button(
+                onClick = { onOpenLandingSimulator(hudActionBody.id) },
+                colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier.height(26.dp).weight(1f),
+              ) {
+                Icon(Icons.Rounded.FlightLand, contentDescription = null, modifier = Modifier.size(11.dp))
+                Spacer(modifier = Modifier.width(2.dp))
+                Text("Atterra", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold)
+              }
+            }
+            Button(
+              onClick = { onOpenPlanetDetail(hudActionBody.id) },
+              colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
+              shape = RoundedCornerShape(6.dp),
+              contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+              modifier = Modifier.height(26.dp).weight(1f),
+            ) {
+              Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(11.dp))
+              Spacer(modifier = Modifier.width(2.dp))
+              Text("3D", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold)
+            }
+          }
+        }
+      }
+    }
+
     // 3. Top-Right: Comandi Simulazione Live / Pausa, Scansa Asteroidi e Livellamento
     Row(
       modifier = Modifier.align(Alignment.TopEnd).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1542,164 +1696,98 @@ fun FirstPersonFlightSimulator3D(
           }
         }
 
-        // 2. POSTAZIONE CENTRALE: Co-Pilota Chibi Olografico + Rotte Pianeti
+        // 2. POSTAZIONE CENTRALE OTTIMIZZATA: Rotta di Navigazione & Selettore Pianeti
         Column(
-          modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+          modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-          val actionBody =
-            autopilotTargetId?.let { SolarSystemData.getPlanetById(it) }
-              ?: if (nearestDist < nearestBody.sceneVisualRadius * 5.2f + 42f) nearestBody else null
-
-          // Terminale Olografico con Astronauta Chibi Co-Pilota
+          // Barra Rotta Tattica: Mostra il bersaglio selezionato o il corpo più vicino
+          val activeTargetBody = autopilotTargetId?.let { SolarSystemData.getPlanetById(it) } ?: nearestBody
           Surface(
-            color = SpaceCardElevated.copy(alpha = 0.92f),
-            shape = RoundedCornerShape(14.dp),
-            border = BorderStroke(1.2.dp, if (boostActive) NebulaMagenta else CosmicCyan.copy(alpha = 0.6f)),
+            color = SpaceNavy.copy(alpha = 0.88f),
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.dp, if (autopilotTargetId != null) AuroraGreen.copy(alpha = 0.7f) else CosmicCyan.copy(alpha = 0.4f)),
+            modifier = Modifier.fillMaxWidth(),
           ) {
             Row(
-              modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
               verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-              val (coPilotSpeech, coPilotExpr) = getCockpitCoPilotDialogue(
-                nearestBody = nearestBody,
-                nearestDist = nearestDist,
-                sunDist = sunDist,
-                boostActive = boostActive,
-                throttle = throttle,
-                isAutopilot = isAutopilotSteering,
-                chibiName = chibiProfile.name,
-              )
-
-              // Avatar Chibi
-              ChibiAvatar(
-                profile = chibiProfile,
-                expression = coPilotExpr,
-                size = 38.dp,
-                showBackdrop = false,
-              )
-
-              // Messaggio del Co-pilota
-              Column(modifier = Modifier.weight(1f)) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                  Text(
-                    text = "CO-PILOTA ${chibiProfile.name.uppercase()}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = CosmicAmber,
-                  )
-                  if (sunDist < 100f) {
-                    Surface(
-                      color = Color(0xFFFF2A2A),
-                      shape = RoundedCornerShape(4.dp),
-                    ) {
-                      Text(
-                        text = "ALLERTA CALORE",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                        color = StarlightWhite,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                      )
-                    }
-                  } else if (nearestDist < 55f) {
-                    Surface(
-                      color = AuroraGreen,
-                      shape = RoundedCornerShape(4.dp),
-                    ) {
-                      Text(
-                        text = "PROSSIMITÀ",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
-                        color = ComicInk,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                      )
-                    }
-                  }
-                }
-                Spacer(modifier = Modifier.height(2.dp))
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+              ) {
+                Icon(
+                  imageVector = if (autopilotTargetId != null) Icons.Rounded.CenterFocusStrong else Icons.Rounded.Explore,
+                  contentDescription = null,
+                  tint = if (autopilotTargetId != null) AuroraGreen else CosmicCyan,
+                  modifier = Modifier.size(14.dp),
+                )
                 Text(
-                  text = coPilotSpeech,
-                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 14.sp),
-                  color = if (sunDist < 90f) CosmicAmber else StarlightWhite,
-                  maxLines = 2,
-                  overflow = TextOverflow.Ellipsis,
+                  text = if (autopilotTargetId != null) "ROTTA ATTIVA: ${activeTargetBody.name.uppercase()}" else "SISTEMA SOLARE (TOCCA UN PIANETA)",
+                  style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
+                  color = if (autopilotTargetId != null) AuroraGreen else StarlightWhite,
                 )
               }
 
-              // Pulsanti azione rapida per il pianeta
-              if (actionBody != null) {
-                if (autopilotTargetId != null) {
-                  Button(
-                    onClick = { isAutopilotSteering = !isAutopilotSteering },
-                    colors = ButtonDefaults.buttonColors(
-                      containerColor = if (isAutopilotSteering) NebulaMagenta else AuroraGreen,
-                      contentColor = if (isAutopilotSteering) StarlightWhite else ComicInk,
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp).testTag("cockpit_autopilot_button"),
+              if (autopilotTargetId != null) {
+                Surface(
+                  onClick = { isAutopilotSteering = !isAutopilotSteering },
+                  color = if (isAutopilotSteering) NebulaMagenta else AuroraGreen,
+                  shape = RoundedCornerShape(6.dp),
+                  modifier = Modifier.height(22.dp).testTag("cockpit_autopilot_button"),
+                ) {
+                  Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                   ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, tint = if (isAutopilotSteering) StarlightWhite else ComicInk, modifier = Modifier.size(11.dp))
                     Text(
-                      text = if (isAutopilotSteering) "Sgancia" else "Punta",
-                      style = MaterialTheme.typography.labelSmall,
-                      fontWeight = FontWeight.Bold,
+                      text = if (isAutopilotSteering) "AUTOPILOTA ATTIVO" else "ATTIVA AUTOPILOTA",
+                      style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                      color = if (isAutopilotSteering) StarlightWhite else ComicInk,
                     )
                   }
-                }
-                if (actionBody.id != "sun") {
-                  Button(
-                    onClick = { onOpenLandingSimulator(actionBody.id) },
-                    colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(28.dp),
-                  ) {
-                    Icon(Icons.Rounded.FlightLand, contentDescription = null, modifier = Modifier.size(13.dp))
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text("Atterra", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                  }
-                }
-                Button(
-                  onClick = { onOpenPlanetDetail(actionBody.id) },
-                  colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
-                  shape = RoundedCornerShape(8.dp),
-                  contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                  modifier = Modifier.height(28.dp),
-                ) {
-                  Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(13.dp))
-                  Spacer(modifier = Modifier.width(3.dp))
-                  Text("3D", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
               }
             }
           }
 
-          // Selettore Rapido Pianeti Rotta
+          // Selettore Rapido Pianeti Rotta a scorrimento orizzontale comodo
           Surface(
-            color = SpaceNavy.copy(alpha = 0.85f),
+            color = SpaceCard.copy(alpha = 0.85f),
             shape = RoundedCornerShape(12.dp),
             border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.35f)),
           ) {
             LazyRow(
-              horizontalArrangement = Arrangement.spacedBy(4.dp),
-              contentPadding = PaddingValues(horizontal = 6.dp, vertical = 3.dp),
+              horizontalArrangement = Arrangement.spacedBy(5.dp),
+              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
               modifier = Modifier.fillMaxWidth(),
             ) {
               items(bodies, key = { it.id }) { b ->
+                val isSelected = autopilotTargetId == b.id
                 FilterChip(
-                  selected = autopilotTargetId == b.id,
+                  selected = isSelected,
                   onClick = {
-                    autopilotTargetId = b.id
+                    autopilotTargetId = if (isSelected) null else b.id
                     isAutopilotSteering = false
                   },
-                  label = { Text(b.name, style = MaterialTheme.typography.labelSmall) },
-                  colors = FilterChipDefaults.filterChipColors(selectedContainerColor = b.primaryColor, selectedLabelColor = ComicInk),
-                  modifier = Modifier.height(26.dp).testTag("cockpit_route_${b.id}"),
+                  label = {
+                    Text(
+                      text = b.name,
+                      style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                    )
+                  },
+                  colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = b.primaryColor,
+                    selectedLabelColor = ComicInk,
+                    containerColor = SpaceNavy,
+                    labelColor = StarlightWhite,
+                  ),
+                  modifier = Modifier.height(28.dp).testTag("cockpit_route_${b.id}"),
                 )
               }
             }
