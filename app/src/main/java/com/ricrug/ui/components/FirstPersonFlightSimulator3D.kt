@@ -472,8 +472,9 @@ fun FirstPersonFlightSimulator3D(
         Modifier.fillMaxSize()
           .pointerInput(Unit) {
             detectDragGestures { change, dragAmount ->
-              // Only process touch gestures in windshield zone (upper 68%) to prevent interference with dashboard controls
-              if (change.position.y < size.height * 0.68f) {
+              // Gestione panoramica touch: permette di orientare la visuale anche nella baia centrale aperta
+              val isSidePodZone = (change.position.x < size.width * 0.22f || change.position.x > size.width * 0.78f) && change.position.y > size.height * 0.62f
+              if (!isSidePodZone && change.position.y < size.height * 0.88f) {
                 change.consume()
                 isAutopilotSteering = false
                 shipHeading -= dragAmount.x * 0.0032f
@@ -483,7 +484,8 @@ fun FirstPersonFlightSimulator3D(
           }
           .pointerInput(Unit) {
             detectTapGestures { tapOffset ->
-              if (tapOffset.y < size.height * 0.68f) {
+              val isSidePodZone = (tapOffset.x < size.width * 0.22f || tapOffset.x > size.width * 0.78f) && tapOffset.y > size.height * 0.62f
+              if (!isSidePodZone && tapOffset.y < size.height * 0.88f) {
                 val hit =
                   lastProjected.asReversed().firstOrNull { proj ->
                     val hitR = proj.screenRadius.coerceAtLeast(26f)
@@ -680,18 +682,18 @@ fun FirstPersonFlightSimulator3D(
       }
 
       // ==========================================================
-      // 🚀 ASTRONAVE: MUSO, ALI E STRUTTURA ESTERNA
+      // 🚀 ASTRONAVE: MUSO, ALI E STRUTTURA ESTERNA A PROFILO RIBASSATO (PANORAMIC BUBBLE CANOPY)
       // ==========================================================
-      val shipNoseW = size.width * 0.20f
-      val shipNoseBottomY = size.height * 0.88f
-      val shipNoseTipY = size.height * 0.58f
+      val shipNoseW = size.width * 0.12f
+      val shipNoseBottomY = size.height * 0.98f
+      val shipNoseTipY = size.height * 0.74f
 
-      // 1. Muso aerodinamico centrale dell'astronave con rollio/sway reattivo alla cloche
-      val noseSwayX = -stickX * 24f
-      val nosePitchY = stickY * (if (invertPitch) -16f else 16f)
+      // 1. Muso aerodinamico affusolato ribassato con rollio/sway reattivo alla cloche
+      val noseSwayX = -stickX * 18f
+      val nosePitchY = stickY * (if (invertPitch) -12f else 12f)
       val noseTipX = center.x + noseSwayX
       val noseTipY = shipNoseTipY + nosePitchY
-      val noseBottomY = shipNoseBottomY + nosePitchY * 0.4f
+      val noseBottomY = shipNoseBottomY + nosePitchY * 0.3f
 
       val nosePath = Path().apply {
         moveTo(noseTipX, noseTipY)
@@ -712,99 +714,91 @@ fun FirstPersonFlightSimulator3D(
         brush = Brush.verticalGradient(listOf(CosmicCyan, Color(0xFF1E2844))),
         start = Offset(noseTipX, noseTipY),
         end = Offset(center.x, noseBottomY),
-        strokeWidth = 2.5f,
+        strokeWidth = 2f,
       )
       // Sensore al plasma pulsante sulla punta del muso
       drawCircle(
         color = CosmicCyan.copy(alpha = 0.85f),
-        radius = 4f,
-        center = Offset(noseTipX, noseTipY + 3f),
+        radius = 3.5f,
+        center = Offset(noseTipX, noseTipY + 2f),
       )
 
-      // Getti RCS laterali sul muso che si accendono virando con la cloche
+      // Getti RCS laterali sul muso
       if (stickX < -0.1f) {
-        // Getti verso destra per virare a sinistra
         drawLine(
           color = CosmicCyan,
-          start = Offset(center.x + shipNoseW * 0.25f, shipNoseTipY + 20f),
-          end = Offset(center.x + shipNoseW * 0.25f + 16f * abs(stickX), shipNoseTipY + 20f),
-          strokeWidth = 3f,
+          start = Offset(center.x + shipNoseW * 0.25f, shipNoseTipY + 16f),
+          end = Offset(center.x + shipNoseW * 0.25f + 14f * abs(stickX), shipNoseTipY + 16f),
+          strokeWidth = 2.5f,
         )
       } else if (stickX > 0.1f) {
-        // Getti verso sinistra per virare a destra
         drawLine(
           color = CosmicCyan,
-          start = Offset(center.x - shipNoseW * 0.25f, shipNoseTipY + 20f),
-          end = Offset(center.x - shipNoseW * 0.25f - 16f * abs(stickX), shipNoseTipY + 20f),
-          strokeWidth = 3f,
+          start = Offset(center.x - shipNoseW * 0.25f, shipNoseTipY + 16f),
+          end = Offset(center.x - shipNoseW * 0.25f - 14f * abs(stickX), shipNoseTipY + 16f),
+          strokeWidth = 2.5f,
         )
       }
 
-      // 2. Estremità alari visibili ai lati inferiori
-      // Ala Sinistra
+      // 2. Estremità alari visibili ai lati inferiori (ribassate per massima apertura panoramica)
       val leftWingPath = Path().apply {
-        moveTo(0f, size.height * 0.65f)
-        lineTo(size.width * 0.14f, size.height * 0.76f)
-        lineTo(0f, size.height * 0.85f)
+        moveTo(0f, size.height * 0.78f)
+        lineTo(size.width * 0.08f, size.height * 0.86f)
+        lineTo(0f, size.height * 0.94f)
         close()
       }
       drawPath(
         path = leftWingPath,
         brush = Brush.horizontalGradient(listOf(Color(0xFF141C30), Color(0xFF283654))),
       )
-      // Luce di navigazione di babordo (ROSSA lampeggiante)
       drawCircle(
         color = Color(0xFFFF2A2A).copy(alpha = beaconBlink),
-        radius = 5f,
-        center = Offset(size.width * 0.13f, size.height * 0.76f),
+        radius = 4.5f,
+        center = Offset(size.width * 0.075f, size.height * 0.86f),
       )
 
-      // Ala Destra
       val rightWingPath = Path().apply {
-        moveTo(size.width, size.height * 0.65f)
-        lineTo(size.width * 0.86f, size.height * 0.76f)
-        lineTo(size.width, size.height * 0.85f)
+        moveTo(size.width, size.height * 0.78f)
+        lineTo(size.width * 0.92f, size.height * 0.86f)
+        lineTo(size.width, size.height * 0.94f)
         close()
       }
       drawPath(
         path = rightWingPath,
         brush = Brush.horizontalGradient(listOf(Color(0xFF283654), Color(0xFF141C30))),
       )
-      // Luce di navigazione di tribordo (VERDE lampeggiante)
       drawCircle(
         color = Color(0xFF00FF7F).copy(alpha = beaconBlink),
-        radius = 5f,
-        center = Offset(size.width * 0.87f, size.height * 0.76f),
+        radius = 4.5f,
+        center = Offset(size.width * 0.925f, size.height * 0.86f),
       )
 
       // Getti RCS alari durante il rollio coordinato o manuale
       if (shipBank > 0.06f) {
         val rPow = (shipBank / 0.38f).coerceIn(0.2f, 1f)
-        // Rollio a sinistra: getto verso il basso ala sx, getto verso l'alto ala dx
-        drawLine(color = CosmicCyan, start = Offset(size.width * 0.13f, size.height * 0.76f), end = Offset(size.width * 0.13f, size.height * 0.76f + 20f * rPow), strokeWidth = 3f)
-        drawLine(color = CosmicCyan, start = Offset(size.width * 0.87f, size.height * 0.76f), end = Offset(size.width * 0.87f, size.height * 0.76f - 20f * rPow), strokeWidth = 3f)
+        drawLine(color = CosmicCyan, start = Offset(size.width * 0.08f, size.height * 0.86f), end = Offset(size.width * 0.08f, size.height * 0.86f + 16f * rPow), strokeWidth = 2.5f)
+        drawLine(color = CosmicCyan, start = Offset(size.width * 0.92f, size.height * 0.86f), end = Offset(size.width * 0.92f, size.height * 0.86f - 16f * rPow), strokeWidth = 2.5f)
       } else if (shipBank < -0.06f) {
         val rPow = (-shipBank / 0.38f).coerceIn(0.2f, 1f)
-        // Rollio a destra: getto verso l'alto ala sx, getto verso il basso ala dx
-        drawLine(color = CosmicCyan, start = Offset(size.width * 0.13f, size.height * 0.76f), end = Offset(size.width * 0.13f, size.height * 0.76f - 20f * rPow), strokeWidth = 3f)
-        drawLine(color = CosmicCyan, start = Offset(size.width * 0.87f, size.height * 0.76f), end = Offset(size.width * 0.87f, size.height * 0.76f + 20f * rPow), strokeWidth = 3f)
+        drawLine(color = CosmicCyan, start = Offset(size.width * 0.08f, size.height * 0.86f), end = Offset(size.width * 0.08f, size.height * 0.86f - 16f * rPow), strokeWidth = 2.5f)
+        drawLine(color = CosmicCyan, start = Offset(size.width * 0.92f, size.height * 0.86f), end = Offset(size.width * 0.92f, size.height * 0.86f + 16f * rPow), strokeWidth = 2.5f)
       }
 
       // ==========================================================
-      // 🛡️ CUPOLA E TELAIO CORAZZATO DELLA CABINA DI PILOTAGGIO
+      // 🛡️ CUPOLA PANORAMICA A 180° (BUBBLE CANOPY)
       // ==========================================================
       val frameColor = Color(0xFF10172A)
       val frameHighlight = CosmicCyan.copy(alpha = 0.40f)
 
-      // Reticolo nanotecnologico olografico HUD sul vetro temperato
-      val gridStepX = 64f
-      val gridStepY = 36f
-      val maxGridY = size.height * 0.65f
+      // Reticolo nanotecnologico olografico HUD sul vetro temperato (discreto)
+      val gridStepX = 72f
+      val gridStepY = 40f
+      val maxGridY = size.height * 0.70f
       for (gx in 0..(size.width / gridStepX).toInt()) {
         for (gy in 1..(maxGridY / gridStepY).toInt()) {
           val px = gx * gridStepX + (if (gy % 2 == 1) gridStepX * 0.5f else 0f)
           val py = gy * gridStepY
-          drawCircle(color = CosmicCyan.copy(alpha = 0.06f), radius = 1.1f, center = Offset(px, py))
+          drawCircle(color = CosmicCyan.copy(alpha = 0.05f), radius = 1f, center = Offset(px, py))
         }
       }
 
@@ -812,7 +806,6 @@ fun FirstPersonFlightSimulator3D(
       val sunDist = shipPos.length()
       if (sunDist < 130f) {
         val heatRatio = ((130f - sunDist) / 85f).coerceIn(0f, 1f)
-        // Bagliore ambra/arancione di radiazione solare sul vetro
         drawRect(
           brush = Brush.radialGradient(
             colors = listOf(
@@ -841,60 +834,90 @@ fun FirstPersonFlightSimulator3D(
         }
       }
 
-      // Arco superiore della cupola (Canopy Roof Strut)
+      // Arco superiore sottile della cupola
       drawRect(
         brush = Brush.verticalGradient(listOf(Color(0xFF090E1C), Color(0xFF151F38))),
         topLeft = Offset(0f, 0f),
-        size = Size(size.width, 24f),
+        size = Size(size.width, 14f),
       )
-      drawLine(color = frameHighlight, start = Offset(0f, 24f), end = Offset(size.width, 24f), strokeWidth = 1.8f)
+      drawLine(color = frameHighlight, start = Offset(0f, 14f), end = Offset(size.width, 14f), strokeWidth = 1.4f)
 
-      // Bulloni/rivetti metallici in lega di titanio sul montante superiore
-      for (i in 1..9) {
-        val rx = size.width * (i / 10f)
-        drawCircle(color = Color(0xFF283654), radius = 3.2f, center = Offset(rx, 12f))
-        drawCircle(color = CosmicCyan.copy(alpha = 0.65f), radius = 1.2f, center = Offset(rx - 0.9f, 11.2f))
-      }
-
-      // Montante Diagonale Sinistro
+      // Montante Diagonale Sinistro (spostato verso l'angolo esterno per massima apertura panoramica)
       val strutL = Path().apply {
-        moveTo(0f, size.height * 0.30f)
-        lineTo(size.width * 0.18f, 0f)
-        lineTo(size.width * 0.22f, 0f)
-        lineTo(0f, size.height * 0.38f)
+        moveTo(0f, size.height * 0.38f)
+        lineTo(size.width * 0.07f, 0f)
+        lineTo(size.width * 0.09f, 0f)
+        lineTo(0f, size.height * 0.44f)
         close()
       }
       drawPath(strutL, color = frameColor)
-      drawLine(color = frameHighlight, start = Offset(0f, size.height * 0.30f), end = Offset(size.width * 0.18f, 0f), strokeWidth = 2f)
+      drawLine(color = frameHighlight, start = Offset(0f, size.height * 0.38f), end = Offset(size.width * 0.07f, 0f), strokeWidth = 1.6f)
 
-      // Rivetti montante sinistro
-      for (i in 1..5) {
-        val t = i / 6f
-        val rx = size.width * 0.20f * (1f - t)
-        val ry = size.height * 0.34f * t
-        drawCircle(color = Color(0xFF283654), radius = 2.8f, center = Offset(rx + 6f, ry))
-        drawCircle(color = CosmicCyan.copy(alpha = 0.65f), radius = 1f, center = Offset(rx + 5.2f, ry - 0.8f))
-      }
-
-      // Montante Diagonale Destro
+      // Montante Diagonale Destro (spostato verso l'angolo esterno per massima apertura panoramica)
       val strutR = Path().apply {
-        moveTo(size.width, size.height * 0.30f)
-        lineTo(size.width * 0.82f, 0f)
-        lineTo(size.width * 0.78f, 0f)
-        lineTo(size.width, size.height * 0.38f)
+        moveTo(size.width, size.height * 0.38f)
+        lineTo(size.width * 0.93f, 0f)
+        lineTo(size.width * 0.91f, 0f)
+        lineTo(size.width, size.height * 0.44f)
         close()
       }
       drawPath(strutR, color = frameColor)
-      drawLine(color = frameHighlight, start = Offset(size.width, size.height * 0.30f), end = Offset(size.width * 0.82f, 0f), strokeWidth = 2f)
+      drawLine(color = frameHighlight, start = Offset(size.width, size.height * 0.38f), end = Offset(size.width * 0.93f, 0f), strokeWidth = 1.6f)
 
-      // Rivetti montante destro
-      for (i in 1..5) {
-        val t = i / 6f
-        val rx = size.width - size.width * 0.20f * (1f - t)
-        val ry = size.height * 0.34f * t
-        drawCircle(color = Color(0xFF283654), radius = 2.8f, center = Offset(rx - 6f, ry))
-        drawCircle(color = CosmicCyan.copy(alpha = 0.65f), radius = 1f, center = Offset(rx - 6.8f, ry - 0.8f))
+      // ==========================================================
+      // 🛸 BORDO SAGOMATO DELLA PLANCIA (AEROSPACE COCKPIT RIM)
+      // Sagoma incurvata a V ribassata che incornicia i pod e scende al centro
+      // ==========================================================
+      val podCutL = size.width * 0.22f
+      val podCutR = size.width * 0.78f
+      val rimBaseY = size.height * 0.93f // Punto centrale ribassato (93% dello schermo)
+      val rimSideY = size.height * 0.73f // Altezza consoli pod laterali
+
+      val consoleRimPath = Path().apply {
+        moveTo(0f, size.height)
+        lineTo(0f, rimSideY)
+        cubicTo(
+          podCutL * 0.5f, rimSideY,
+          podCutL, rimBaseY,
+          center.x, rimBaseY,
+        )
+        cubicTo(
+          podCutR, rimBaseY,
+          podCutR + (size.width - podCutR) * 0.5f, rimSideY,
+          size.width, rimSideY,
+        )
+        lineTo(size.width, size.height)
+        close()
       }
+      drawPath(
+        path = consoleRimPath,
+        brush = Brush.verticalGradient(
+          colors = listOf(Color(0xD8080E20), Color(0xF4040710)),
+          startY = rimSideY,
+          endY = size.height,
+        ),
+      )
+      // Linea neon sagomata del bordo plancia
+      val consoleRimStroke = Path().apply {
+        moveTo(0f, rimSideY)
+        cubicTo(
+          podCutL * 0.5f, rimSideY,
+          podCutL, rimBaseY,
+          center.x, rimBaseY,
+        )
+        cubicTo(
+          podCutR, rimBaseY,
+          podCutR + (size.width - podCutR) * 0.5f, rimSideY,
+          size.width, rimSideY,
+        )
+      }
+      drawPath(
+        path = consoleRimStroke,
+        brush = Brush.horizontalGradient(
+          listOf(CosmicCyan.copy(alpha = 0.55f), NebulaMagenta.copy(alpha = 0.55f), CosmicAmber.copy(alpha = 0.55f)),
+        ),
+        style = Stroke(width = 1.8f),
+      )
 
       // Riflesso curvo di luce sul vetro temperato della cupola
       val glarePath = Path().apply {
@@ -1630,26 +1653,25 @@ fun FirstPersonFlightSimulator3D(
     }
 
     // ==========================================================
-    // 🎛️ PLANCIA DI COMANDO DELL'ASTRONAVE (DASHBOARD CONSOLE)
+    // 🎛️ PLANCIA DI COMANDO AD ALTA VISIBILITÀ (TWIN FLIGHT PODS + BAIA PANORAMICA APERTA)
     // ==========================================================
+
+    // 1. POSTAZIONE POLLICE SINISTRO: POD DI VOLO ERGONOMICO
     Surface(
-      modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-      color = Color(0xF20B1124),
-      border = BorderStroke(2.dp, Brush.horizontalGradient(listOf(CosmicCyan.copy(alpha = 0.7f), NebulaMagenta.copy(alpha = 0.7f), CosmicAmber.copy(alpha = 0.7f)))),
-      shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-      shadowElevation = 16.dp,
+      modifier = Modifier
+        .align(Alignment.BottomStart)
+        .padding(start = 8.dp, bottom = 6.dp)
+        .width(136.dp),
+      color = Color(0xF00A1126),
+      shape = RoundedCornerShape(topStart = 20.dp, topEnd = 28.dp, bottomStart = 14.dp, bottomEnd = 8.dp),
+      border = BorderStroke(1.8.dp, Brush.verticalGradient(listOf(CosmicCyan, Color(0xFF14203D)))),
+      shadowElevation = 12.dp,
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+      Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
       ) {
-        // 1. POSTAZIONE POLLICE SINISTRO: CONTROLLER DI VOLO IBRIDO (CLOCHE ANALOGICA + D-PAD TATTICO)
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(3.dp),
-          modifier = Modifier.width(134.dp),
-        ) {
           // Selettore Rapido Modalità: [CLOCHE 3D] vs [D-PAD FRECCE]
           Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1936,12 +1958,23 @@ fun FirstPersonFlightSimulator3D(
             )
           }
         }
+      }
 
-        // 2. POSTAZIONE CENTRALE OTTIMIZZATA: Rotta di Navigazione & Selettore Pianeti
+      // 2. CANALE PANORAMICO CENTRALE: BARRA ROTTA OLOGRAFICA FLUTTUANTE ULTRA-RIBASSATA
+      Surface(
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .padding(start = 152.dp, end = 164.dp, bottom = 6.dp)
+          .fillMaxWidth(),
+        color = Color(0xC0070D1E),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.2.dp, Brush.horizontalGradient(listOf(CosmicCyan.copy(alpha = 0.45f), AuroraGreen.copy(alpha = 0.45f)))),
+        shadowElevation = 6.dp,
+      ) {
         Column(
-          modifier = Modifier.weight(1f).padding(horizontal = 10.dp),
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(4.dp),
+          verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
           // Barra Rotta Tattica: Mostra il bersaglio selezionato o il corpo più vicino
           val activeTargetBody = autopilotTargetId?.let { SolarSystemData.getPlanetById(it) } ?: nearestBody
@@ -1952,7 +1985,7 @@ fun FirstPersonFlightSimulator3D(
             modifier = Modifier.fillMaxWidth(),
           ) {
             Row(
-              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -1964,10 +1997,10 @@ fun FirstPersonFlightSimulator3D(
                   imageVector = if (autopilotTargetId != null) Icons.Rounded.CenterFocusStrong else Icons.Rounded.Explore,
                   contentDescription = null,
                   tint = if (autopilotTargetId != null) AuroraGreen else CosmicCyan,
-                  modifier = Modifier.size(14.dp),
+                  modifier = Modifier.size(13.dp),
                 )
                 Text(
-                  text = if (autopilotTargetId != null) "ROTTA ATTIVA: ${activeTargetBody.name.uppercase()}" else "SISTEMA SOLARE (TOCCA UN PIANETA)",
+                  text = if (autopilotTargetId != null) "ROTTA: ${activeTargetBody.name.uppercase()}" else "SISTEMA SOLARE (TOCCA UN PIANETA)",
                   style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold),
                   color = if (autopilotTargetId != null) AuroraGreen else StarlightWhite,
                 )
@@ -1978,14 +2011,14 @@ fun FirstPersonFlightSimulator3D(
                   onClick = { isAutopilotSteering = !isAutopilotSteering },
                   color = if (isAutopilotSteering) NebulaMagenta else AuroraGreen,
                   shape = RoundedCornerShape(6.dp),
-                  modifier = Modifier.height(22.dp).testTag("cockpit_autopilot_button"),
+                  modifier = Modifier.height(20.dp).testTag("cockpit_autopilot_button"),
                 ) {
                   Row(
                     modifier = Modifier.padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                   ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, tint = if (isAutopilotSteering) StarlightWhite else ComicInk, modifier = Modifier.size(11.dp))
+                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, tint = if (isAutopilotSteering) StarlightWhite else ComicInk, modifier = Modifier.size(10.dp))
                     Text(
                       text = if (isAutopilotSteering) "AUTOPILOTA ATTIVO" else "ATTIVA AUTOPILOTA",
                       style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
@@ -1999,13 +2032,12 @@ fun FirstPersonFlightSimulator3D(
 
           // Selettore Rapido Pianeti Rotta a scorrimento orizzontale comodo
           Surface(
-            color = SpaceCard.copy(alpha = 0.85f),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.35f)),
+            color = Color(0x60030814),
+            shape = RoundedCornerShape(10.dp),
           ) {
             LazyRow(
               horizontalArrangement = Arrangement.spacedBy(5.dp),
-              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+              contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
               modifier = Modifier.fillMaxWidth(),
             ) {
               items(bodies, key = { it.id }) { b ->
@@ -2019,27 +2051,39 @@ fun FirstPersonFlightSimulator3D(
                   label = {
                     Text(
                       text = b.name,
-                      style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                      style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal),
                     )
                   },
                   colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = b.primaryColor,
                     selectedLabelColor = ComicInk,
-                    containerColor = SpaceNavy,
+                    containerColor = SpaceNavy.copy(alpha = 0.85f),
                     labelColor = StarlightWhite,
                   ),
-                  modifier = Modifier.height(28.dp).testTag("cockpit_route_${b.id}"),
+                  modifier = Modifier.height(24.dp).testTag("cockpit_route_${b.id}"),
                 )
               }
             }
           }
         }
+      }
 
-        // 3. POSTAZIONE POLLICE DESTRO: Manetta Spinta & Pulsanti Tattici (STOP, WARP, Rollio)
+      // 3. POSTAZIONE POLLICE DESTRO: POD DI PROPULSIONE ERGONOMICO
+      Surface(
+        modifier = Modifier
+          .align(Alignment.BottomEnd)
+          .padding(end = 8.dp, bottom = 6.dp)
+          .width(148.dp)
+          .testTag("cockpit_right_stick"),
+        color = Color(0xF00A1126),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 20.dp, bottomStart = 8.dp, bottomEnd = 14.dp),
+        border = BorderStroke(1.8.dp, Brush.verticalGradient(listOf(if (boostActive) NebulaMagenta else CosmicAmber, Color(0xFF14203D)))),
+        shadowElevation = 12.dp,
+      ) {
         Column(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(3.dp),
-          modifier = Modifier.width(148.dp).testTag("cockpit_right_stick"),
+          modifier = Modifier.padding(horizontal = 7.dp, vertical = 6.dp),
         ) {
           // Barra comandi assetto: Livellamento e Rollio manuale fine
           Row(
@@ -2332,7 +2376,6 @@ fun FirstPersonFlightSimulator3D(
           )
         }
       }
-    }
   }
 }
 

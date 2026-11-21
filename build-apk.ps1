@@ -399,6 +399,122 @@ if (-not $NoGitPush) {
 
             if ($pushExit -eq 0) {
                 Write-Host "✅ Repository GitHub aggiornato con successo su origin/$currentBranch!" -ForegroundColor Green
+
+                # 9. Pubblicazione automatica Release su GitHub con asset APK allegato
+                try {
+                    Write-Host "`n==========================================================" -ForegroundColor Cyan
+                    Write-Host " 🚀 Pubblicazione Release su GitHub" -ForegroundColor Cyan
+                    Write-Host "==========================================================" -ForegroundColor Cyan
+
+                    # Recupero credenziali per API GitHub tramite Git Credential Manager
+                    $credInput = "url=https://github.com/ricrug/AstroBloom.git`n`n"
+                    $process = New-Object System.Diagnostics.Process
+                    $process.StartInfo.FileName = "git"
+                    $process.StartInfo.Arguments = "credential fill"
+                    $process.StartInfo.UseShellExecute = $false
+                    $process.StartInfo.RedirectStandardInput = $true
+                    $process.StartInfo.RedirectStandardOutput = $true
+                    $process.StartInfo.CreateNoWindow = $true
+                    [void]$process.Start()
+                    $writer = $process.StandardInput
+                    $writer.Write($credInput)
+                    $writer.Flush()
+                    $writer.Close()
+                    $gitCredOut = $process.StandardOutput.ReadToEnd()
+                    $process.WaitForExit()
+
+                    $ghToken = ""
+                    foreach ($l in ($gitCredOut -split "`r?`n")) {
+                        if ($l.StartsWith("password=")) {
+                            $ghToken = $l.Substring(9).Trim()
+                            break
+                        }
+                    }
+
+                    if ($ghToken) {
+                        $releaseTag = "v$versionName-b$build"
+                        Write-Host "Creazione tag git e invio a GitHub: $releaseTag..." -ForegroundColor DarkGray
+                        & git tag -f -a "$releaseTag" -m "Release $releaseTag" 2>&1 | Out-Null
+                        $origEAP = $ErrorActionPreference
+                        $ErrorActionPreference = "Continue"
+                        & git push origin "$releaseTag" --force 2>&1 | Out-Null
+                        $ErrorActionPreference = $origEAP
+
+                        $ghHeaders = @{
+                            "Authorization" = "token $ghToken"
+                            "User-Agent" = "AstroBloom-BuildScript"
+                            "Accept" = "application/vnd.github.v3+json"
+                        }
+
+                        $releaseName = "AstroViaggio v$versionName (Build $build)"
+                        $releaseBody = @(
+                            "## 🚀 AstroViaggio v$versionName (Build $build)",
+                            "",
+                            "### Novità dell'aggiornamento:",
+                            "- **Cockpit Panoramico Aerospaziale**: Nuova sagoma ergonomica a doppio pod (Twin Flight Pods) per i pollici, con baia centrale panoramica ribassata che libera l'orizzonte e aumenta drasticamente la visuale dello spazio esterno.",
+                            "- **HUD Tattico Centrale ad Altissima Visibilità**: Reticolo di collimazione avanzato, scala di beccheggio espansa a ±30°, e telemetria istantanea a schermo con scudo protettivo anti-abbagliamento.",
+                            "- **Leva Velocità con Ritorno Automatico a Zero**: Dead-Man's throttle con arresto e frenata immediata dell'astronave al rilascio del pollice destro.",
+                            "- **Plancia Ottimizzata & Ologramma Co-Pilota**: Messaggi e avatar Chibi posizionati sul display laterale destro.",
+                            "",
+                            "### 📦 Dettagli Pacchetto APK:",
+                            "- **File:** $destApkName",
+                            "- **Dimensione:** $("{0:N2} MB" -f ($apkFileSize / 1MB))",
+                            "- **Firma Digitale SHA-256:** $certFingerprint"
+                        ) -join "`n"
+
+                        # Verifica release esistente
+                        $existingRelease = $null
+                        try {
+                            $existingRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases/tags/$releaseTag" -Headers $ghHeaders -Method Get
+                        } catch {}
+
+                        if ($existingRelease) {
+                            Write-Host "Aggiornamento release esistente $releaseTag (ID: $($existingRelease.id))..." -ForegroundColor DarkGray
+                            $releaseId = $existingRelease.id
+                        } else {
+                            Write-Host "Creazione nuova release su GitHub: $releaseTag..." -ForegroundColor Cyan
+                            $createPayload = @{
+                                tag_name = $releaseTag
+                                target_commitish = $currentBranch
+                                name = $releaseName
+                                body = $releaseBody
+                                draft = $false
+                                prerelease = $false
+                            } | ConvertTo-Json -Depth 4
+                            $newRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases" -Headers $ghHeaders -Method Post -Body $createPayload -ContentType "application/json"
+                            $releaseId = $newRelease.id
+                        }
+
+                        # Caricamento del file APK firmato come asset della release
+                        if ($releaseId -and (Test-Path $destApkPath)) {
+                            Write-Host "Caricamento APK su GitHub Release ($destApkName)..." -ForegroundColor Cyan
+                            $uploadHeaders = @{
+                                "Authorization" = "token $ghToken"
+                                "User-Agent" = "AstroBloom-BuildScript"
+                                "Content-Type" = "application/vnd.android.package-archive"
+                            }
+
+                            try {
+                                $assets = Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases/$releaseId/assets" -Headers $ghHeaders -Method Get
+                                foreach ($a in $assets) {
+                                    if ($a.name -eq $destApkName) {
+                                        Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases/assets/$($a.id)" -Headers $ghHeaders -Method Delete | Out-Null
+                                    }
+                                }
+                            } catch {}
+
+                            $apkBytes = [System.IO.File]::ReadAllBytes($destApkPath)
+                            $uploadUri = "https://uploads.github.com/repos/ricrug/AstroBloom/releases/$releaseId/assets?name=$destApkName"
+                            $uploadResult = Invoke-RestMethod -Uri $uploadUri -Headers $uploadHeaders -Method Post -Body $apkBytes
+                            Write-Host "✓ APK caricato con successo sulla release GitHub!" -ForegroundColor Green
+                            Write-Host "🔗 Link Download: $($uploadResult.browser_download_url)" -ForegroundColor Green
+                        }
+                    } else {
+                        Write-Warning "Token GitHub non disponibile per la pubblicazione della release."
+                    }
+                } catch {
+                    Write-Warning "Avviso durante la pubblicazione della release: $_"
+                }
             } else {
                 Write-Warning "Impossibile completare il push su GitHub (exit code $pushExit): $pushOut"
             }
