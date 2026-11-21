@@ -70,6 +70,7 @@ class SurfaceExplorationTest {
     assertTrue("Should include MESSENGER mission", missions.any { it.contains("MESSENGER") })
     assertTrue("Should include Cassini-Huygens mission", missions.any { it.contains("Cassini") || it.contains("Huygens") })
     assertTrue("Should include New Horizons mission", missions.any { it.contains("New Horizons") })
+    assertTrue("Should include Voyager 2 mission", missions.any { it.contains("Voyager") })
   }
 
   @Test
@@ -83,6 +84,7 @@ class SurfaceExplorationTest {
     for (poi in pois) {
       assertTrue("POI name not blank", poi.name.isNotBlank())
       assertTrue("POI description not blank", poi.description.isNotBlank())
+      assertTrue("POI XP must be > 0: ${poi.id}", poi.xpValue > 0)
       if (poi.associatedPhotoId != null) {
         val linked = SurfaceExplorationRepository.officialPhotos.any { it.id == poi.associatedPhotoId }
         assertTrue("POI associatedPhotoId must exist in photos: ${poi.associatedPhotoId}", linked)
@@ -97,6 +99,38 @@ class SurfaceExplorationTest {
       if (sample.associatedPhotoId != null) {
         val linked = SurfaceExplorationRepository.officialPhotos.any { it.id == sample.associatedPhotoId }
         assertTrue("Sample associatedPhotoId must exist in photos: ${sample.associatedPhotoId}", linked)
+      }
+    }
+  }
+
+  @Test
+  fun testAllExplorablePlanetsHaveUniquePoisAndSamples() {
+    val explorablePlanets = listOf("moon", "mars", "venus", "mercury", "jupiter", "saturn", "uranus", "neptune", "pluto")
+
+    for (pid in explorablePlanets) {
+      val pois = SurfaceExplorationRepository.getPoisForPlanet(pid)
+      val samples = SurfaceExplorationRepository.getSamplesForPlanet(pid)
+      val photos = SurfaceExplorationRepository.getPhotosForPlanet(pid)
+
+      assertTrue("Planet $pid must have at least 1 POI", pois.isNotEmpty())
+      assertTrue("Planet $pid must have at least 1 Sample", samples.isNotEmpty())
+      assertTrue("Planet $pid must have at least 1 Photo", photos.isNotEmpty())
+
+      // Assert no fallback to moon for other planets
+      if (pid != "moon") {
+        assertTrue("Planet $pid POIs must be dedicated to $pid and not fall back to moon", pois.all { it.planetId == pid })
+        assertTrue("Planet $pid Samples must be dedicated to $pid and not fall back to moon", samples.all { it.planetId == pid })
+        assertTrue("Planet $pid Photos must be dedicated to $pid and not fall back to moon", photos.all { it.planetId == pid })
+      }
+
+      // Assert all coordinates are within reasonable walkable reach (5m to 60m from ship at 0,0)
+      for (poi in pois) {
+        val dist = kotlin.math.sqrt(poi.posX * poi.posX + poi.posZ * poi.posZ)
+        assertTrue("POI ${poi.id} distance ($dist) must be within 5m to 60m from ship", dist in 5f..60f)
+      }
+      for (sample in samples) {
+        val dist = kotlin.math.sqrt(sample.posX * sample.posX + sample.posZ * sample.posZ)
+        assertTrue("Sample ${sample.id} distance ($dist) must be within 5m to 60m from ship", dist in 5f..60f)
       }
     }
   }

@@ -31,6 +31,9 @@ class ExplorerPreferencesRepository(private val context: Context) {
     val BEST_QUIZ_SCORE = intPreferencesKey("best_quiz_score")
     val QUIZ_STAR_UNLOCKED = booleanPreferencesKey("quiz_star_unlocked")
     val BEST_ASTEROID_DODGE_SCORE = intPreferencesKey("best_asteroid_dodge_score")
+    val TOTAL_EXPLORATION_XP = intPreferencesKey("total_exploration_xp")
+    val DISCOVERED_POIS = stringSetPreferencesKey("discovered_pois")
+    val COLLECTED_SAMPLES = stringSetPreferencesKey("collected_samples")
   }
 
   val chibiProfileFlow: Flow<ChibiProfile> =
@@ -59,6 +62,37 @@ class ExplorerPreferencesRepository(private val context: Context) {
 
   val bestAsteroidDodgeScoreFlow: Flow<Int> =
     context.explorerDataStore.data.map { prefs -> prefs[Keys.BEST_ASTEROID_DODGE_SCORE] ?: 0 }
+
+  val totalExplorationXpFlow: Flow<Int> =
+    context.explorerDataStore.data.map { prefs -> prefs[Keys.TOTAL_EXPLORATION_XP] ?: 0 }
+
+  val discoveredPoiIdsFlow: Flow<Set<String>> =
+    context.explorerDataStore.data.map { prefs -> prefs[Keys.DISCOVERED_POIS] ?: emptySet() }
+
+  val collectedSampleIdsFlow: Flow<Set<String>> =
+    context.explorerDataStore.data.map { prefs -> prefs[Keys.COLLECTED_SAMPLES] ?: emptySet() }
+
+  suspend fun recordPoiDiscovered(poiId: String, xp: Int) {
+    context.explorerDataStore.edit { prefs ->
+      val currentPois = prefs[Keys.DISCOVERED_POIS] ?: emptySet()
+      if (poiId !in currentPois) {
+        prefs[Keys.DISCOVERED_POIS] = currentPois + poiId
+        val prevXp = prefs[Keys.TOTAL_EXPLORATION_XP] ?: 0
+        prefs[Keys.TOTAL_EXPLORATION_XP] = prevXp + xp
+      }
+    }
+  }
+
+  suspend fun recordSampleCollected(sampleId: String, xp: Int) {
+    context.explorerDataStore.edit { prefs ->
+      val currentSamples = prefs[Keys.COLLECTED_SAMPLES] ?: emptySet()
+      if (sampleId !in currentSamples) {
+        prefs[Keys.COLLECTED_SAMPLES] = currentSamples + sampleId
+        val prevXp = prefs[Keys.TOTAL_EXPLORATION_XP] ?: 0
+        prefs[Keys.TOTAL_EXPLORATION_XP] = prevXp + xp
+      }
+    }
+  }
 
   suspend fun saveBestAsteroidDodgeScore(score: Int) {
     context.explorerDataStore.edit { prefs ->

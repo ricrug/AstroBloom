@@ -106,6 +106,11 @@ private tailrec fun Context.findActivity(): Activity? =
 fun SurfaceExplorationScreen(
   planetId: String,
   chibiProfile: ChibiProfile,
+  savedTotalXp: Int = 0,
+  initialDiscoveredPoiIds: Set<String> = emptySet(),
+  initialCollectedSampleIds: Set<String> = emptySet(),
+  onRecordPoiDiscovered: (String, Int) -> Unit = { _, _ -> },
+  onRecordSampleCollected: (String, Int) -> Unit = { _, _ -> },
   onExitExploration: () -> Unit,
   onMarkPlanetExplored: (String) -> Unit = {},
   modifier: Modifier = Modifier,
@@ -158,22 +163,39 @@ fun SurfaceExplorationScreen(
   var showPhotoGallery by remember { mutableStateOf(false) }
   var selectedGalleryPhoto by remember { mutableStateOf<OfficialPhotoRecord?>(photos.firstOrNull()) }
 
-  var totalXp by remember { mutableIntStateOf(0) }
+  var totalXp by remember(savedTotalXp) { mutableIntStateOf(savedTotalXp) }
+  val discoveredPoiIds = remember(initialDiscoveredPoiIds) {
+    mutableStateListOf<String>().apply { addAll(initialDiscoveredPoiIds) }
+  }
+  val collectedSampleIds = remember(initialCollectedSampleIds) {
+    mutableStateListOf<String>().apply { addAll(initialCollectedSampleIds) }
+  }
 
   Box(modifier = modifier.fillMaxSize().background(SpaceVoid)) {
     // 1. Viewer 3D in Prima Persona della Superficie
     SurfaceFirstPersonViewer3D(
       planetId = planetId,
       chibiProfile = chibiProfile,
+      initialCollectedSampleIds = initialCollectedSampleIds,
+      initialDiscoveredPoiIds = initialDiscoveredPoiIds,
       onInspectPoi = { poi, photo ->
         inspectedPoi = poi
         inspectedPoiPhoto = photo
+        if (poi.id !in discoveredPoiIds) {
+          discoveredPoiIds.add(poi.id)
+          totalXp += poi.xpValue
+          onRecordPoiDiscovered(poi.id, poi.xpValue)
+        }
         onMarkPlanetExplored(planetId)
       },
       onCollectSample = { sample, photo ->
         collectedSample = sample
         collectedSamplePhoto = photo
-        totalXp += sample.xpValue
+        if (sample.id !in collectedSampleIds) {
+          collectedSampleIds.add(sample.id)
+          totalXp += sample.xpValue
+          onRecordSampleCollected(sample.id, sample.xpValue)
+        }
         onMarkPlanetExplored(planetId)
       },
       onOpenPhotoGallery = {
@@ -458,7 +480,7 @@ fun SurfaceExplorationScreen(
                     ChibiAvatar(profile = chibiProfile, size = 48.dp, expression = ChibiExpression.AMAZED)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                      text = "«Comandante, è incredibile vedere questo reperto sul vero suolo alieno! Confrontalo con la foto ufficiale della NASA!»",
+                      text = "«Comandante, abbiamo documentato questo sito storico! +${inspectedPoi!!.xpValue} XP scientifici registrati nel diario!»",
                       style = MaterialTheme.typography.bodySmall,
                       fontFamily = FredokaFontFamily,
                       color = CosmicCyan,

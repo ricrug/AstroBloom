@@ -67,6 +67,35 @@ class AstroViewModel(application: Application) : AndroidViewModel(application) {
       initialValue = 0,
     )
 
+  val totalExplorationXp: StateFlow<Int> =
+    repository.totalExplorationXpFlow.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000),
+      initialValue = 0,
+    )
+
+  val discoveredPoiIds: StateFlow<Set<String>> =
+    repository.discoveredPoiIdsFlow.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000),
+      initialValue = emptySet(),
+    )
+
+  val collectedSampleIds: StateFlow<Set<String>> =
+    repository.collectedSampleIdsFlow.stateIn(
+      scope = viewModelScope,
+      started = SharingStarted.WhileSubscribed(5_000),
+      initialValue = emptySet(),
+    )
+
+  fun recordPoiDiscovered(poiId: String, xp: Int) {
+    viewModelScope.launch { repository.recordPoiDiscovered(poiId, xp) }
+  }
+
+  fun recordSampleCollected(sampleId: String, xp: Int) {
+    viewModelScope.launch { repository.recordSampleCollected(sampleId, xp) }
+  }
+
   fun saveAsteroidDodgeScore(score: Int) {
     viewModelScope.launch { repository.saveBestAsteroidDodgeScore(score) }
   }

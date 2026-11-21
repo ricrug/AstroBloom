@@ -109,6 +109,8 @@ private data class SurfaceDustParticle(
 fun SurfaceFirstPersonViewer3D(
   planetId: String,
   chibiProfile: ChibiProfile,
+  initialCollectedSampleIds: Set<String> = emptySet(),
+  initialDiscoveredPoiIds: Set<String> = emptySet(),
   onInspectPoi: (SurfacePoi, OfficialPhotoRecord?) -> Unit,
   onCollectSample: (SurfaceSample, OfficialPhotoRecord?) -> Unit,
   onOpenPhotoGallery: () -> Unit,
@@ -117,8 +119,12 @@ fun SurfaceFirstPersonViewer3D(
   val env = remember(planetId) { SurfaceExplorationRepository.getEnvironmentConfig(planetId) }
   val pois = remember(planetId) { SurfaceExplorationRepository.getPoisForPlanet(planetId) }
   val samples = remember(planetId) { SurfaceExplorationRepository.getSamplesForPlanet(planetId) }
-  val collectedSampleIds = remember { mutableStateListOf<String>() }
-  val discoveredPoiIds = remember { mutableStateListOf<String>() }
+  val collectedSampleIds = remember(planetId, initialCollectedSampleIds) {
+    mutableStateListOf<String>().apply { addAll(initialCollectedSampleIds) }
+  }
+  val discoveredPoiIds = remember(planetId, initialDiscoveredPoiIds) {
+    mutableStateListOf<String>().apply { addAll(initialDiscoveredPoiIds) }
+  }
 
   // Rocce e massi 3D sparsi proceduralmente a 360° sul terreno per dare orientamento e scala reale
   val proceduralRocks = remember {
@@ -313,10 +319,10 @@ fun SurfaceFirstPersonViewer3D(
           val dx = sample.posX - playerX
           val dz = sample.posZ - playerZ
           val dist = sqrt(dx * dx + dz * dz)
-          if (dist < 5.5f) {
+          if (dist < 6.5f) {
             // Controlla se è nel cono visivo frontale (~60°)
             val dot = (dx * fwdX + dz * fwdZ) / max(0.1f, dist)
-            if (dot > 0.65f && dist < closestSampleDist) {
+            if (dot > 0.60f && dist < closestSampleDist) {
               closestSampleDist = dist
               closestSample = sample
             }
@@ -330,9 +336,9 @@ fun SurfaceFirstPersonViewer3D(
           val dx = poi.posX - playerX
           val dz = poi.posZ - playerZ
           val dist = sqrt(dx * dx + dz * dz)
-          if (dist < 8.0f) {
+          if (dist < 11.0f) {
             val dot = (dx * fwdX + dz * fwdZ) / max(0.1f, dist)
-            if (dot > 0.60f && dist < closestPoiDist) {
+            if (dot > 0.55f && dist < closestPoiDist) {
               closestPoiDist = dist
               closestPoi = poi
             }
@@ -1550,7 +1556,7 @@ fun SurfaceFirstPersonViewer3D(
         drawCircle(color = CosmicAmber, radius = 4f, center = Offset(landerMarkerX, compassCenter.y - 10f))
       }
 
-      // Indicatori Direzione POI sulla bussola
+      // Indicatori Direzione POI sulla bussola (Verde Aurora)
       pois.forEach { poi ->
         val dx = poi.posX - playerX
         val dz = poi.posZ - playerZ
@@ -1558,6 +1564,19 @@ fun SurfaceFirstPersonViewer3D(
         if (abs(angleToPoi) < 45.0) {
           val poiMarkerX = compassCenter.x + (angleToPoi.toFloat() / 45f) * compassHalfW
           drawCircle(color = AuroraGreen, radius = 3.2f, center = Offset(poiMarkerX, compassCenter.y - 10f))
+        }
+      }
+
+      // Indicatori Direzione Campioni Non Raccolti sulla bussola (Ciano Cosmico)
+      samples.forEach { s ->
+        if (s.id !in collectedSampleIds) {
+          val dx = s.posX - playerX
+          val dz = s.posZ - playerZ
+          val angleToSample = ((atan2(dx.toDouble(), dz.toDouble()) * 180.0 / PI - playerYawDeg + 540.0) % 360.0) - 180.0
+          if (abs(angleToSample) < 45.0) {
+            val sMarkerX = compassCenter.x + (angleToSample.toFloat() / 45f) * compassHalfW
+            drawCircle(color = CosmicCyan, radius = 2.6f, center = Offset(sMarkerX, compassCenter.y - 10f))
+          }
         }
       }
 
@@ -2050,8 +2069,9 @@ private fun SurfaceActionOverlay(
           }
         }
 
-        // Tasto Azione Contestuale (Scansiona/Raccogli) se vicino al bersaglio (< 4 metri)
-        if ((activeTargetSample != null || activeTargetPoi != null) && targetDistance < 4.5f) {
+        // Tasto Azione Contestuale (Scansiona/Raccogli) se vicino al bersaglio
+        val interactionRange = if (activeTargetSample != null) 5.0f else 8.0f
+        if ((activeTargetSample != null || activeTargetPoi != null) && targetDistance < interactionRange) {
           Button(
             onClick = onInspectTarget,
             colors = ButtonDefaults.buttonColors(

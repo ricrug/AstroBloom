@@ -139,6 +139,9 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
   val userWeightKg by viewModel.userWeightKg.collectAsStateWithLifecycle()
   val userAgeYears by viewModel.userAgeYears.collectAsStateWithLifecycle()
   val bestAsteroidDodgeScore by viewModel.bestAsteroidDodgeScore.collectAsStateWithLifecycle()
+  val totalExplorationXp by viewModel.totalExplorationXp.collectAsStateWithLifecycle()
+  val discoveredPoiIds by viewModel.discoveredPoiIds.collectAsStateWithLifecycle()
+  val collectedSampleIds by viewModel.collectedSampleIds.collectAsStateWithLifecycle()
 
   var showChibiSheet by remember { mutableStateOf(false) }
 
@@ -386,6 +389,11 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 SurfaceExplorationScreen(
                   planetId = planetId,
                   chibiProfile = chibiProfile,
+                  savedTotalXp = totalExplorationXp,
+                  initialDiscoveredPoiIds = discoveredPoiIds,
+                  initialCollectedSampleIds = collectedSampleIds,
+                  onRecordPoiDiscovered = viewModel::recordPoiDiscovered,
+                  onRecordSampleCollected = viewModel::recordSampleCollected,
                   onExitExploration = { navController.popBackStack() },
                   onMarkPlanetExplored = viewModel::markPlanetExplored,
                 )

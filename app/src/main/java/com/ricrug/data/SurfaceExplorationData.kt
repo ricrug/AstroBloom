@@ -33,6 +33,7 @@ data class SurfacePoi(
   val posZ: Float,
   val description: String,
   val associatedPhotoId: String? = null,
+  val xpValue: Int = 100,
 )
 
 /**
@@ -322,6 +323,38 @@ object SurfaceExplorationRepository {
       credit = "NASA / Johns Hopkins University Applied Physics Laboratory / Southwest Research Institute",
     ),
 
+    // === URANO (ARIEL) ===
+    OfficialPhotoRecord(
+      id = "uranus_voyager2_ariel",
+      planetId = "uranus",
+      title = "I canyon glaciali e le faglie di Ariel",
+      mission = "Voyager 2",
+      agency = "NASA / JPL",
+      captureDate = "24 Gennaio 1986",
+      imageUrl = "https://upload.wikimedia.org/wikipedia/commons/5/59/Ariel_%28moon%29.jpg",
+      drawableRes = R.drawable.photo_uranus_voyager2_ariel,
+      caption = "Mosaico ad alta risoluzione della luna Ariel ripreso dalla sonda Voyager 2 a 130.000 km. Mostra una complessa rete di canyon (Kachina Chasma) rimodellati da antiche eruzioni di criolava.",
+      scientificTip = "Ariel è la luna geologicamente più attiva di Urano: le valli a fondo piatto sono colate di una miscela ghiacciata di acqua e ammoniaca fluita dal mantello.",
+      category = "Criovulcanismo",
+      credit = "NASA / JPL",
+    ),
+
+    // === NETTUNO (TRITONE) ===
+    OfficialPhotoRecord(
+      id = "neptune_voyager2_triton",
+      planetId = "neptune",
+      title = "Il regno glaciale e i geyser di Tritone",
+      mission = "Voyager 2",
+      agency = "NASA / JPL",
+      captureDate = "25 Agosto 1989",
+      imageUrl = "https://upload.wikimedia.org/wikipedia/commons/a/a6/Triton_moon_mosaic_Voyager_2_%28large%29.jpg",
+      drawableRes = R.drawable.photo_neptune_voyager2_triton,
+      caption = "Primo piano della luna Tritone di Nettuno: a -235°C è il corpo più freddo mai esplorato nel Sistema Solare. Mostra la calotta polare di azoto rosa e il terreno a buccia di melone.",
+      scientificTip = "Tritone orbita in senso retrogrado rispetto alla rotazione di Nettuno: era un pianeta nano della Fascia di Kuiper catturato dalla gravità di Nettuno.",
+      category = "Mondi Glaciali Catturati",
+      credit = "NASA / JPL / USGS",
+    ),
+
     // === TERRA ===
     OfficialPhotoRecord(
       id = "earth_blue_marble",
@@ -384,7 +417,8 @@ object SurfaceExplorationRepository {
       posX = 4f,
       posZ = 16f,
       description = "Il rover Perseverance della NASA intento a raccogliere campioni sigillati di roccia nel cratere Jezero, con l'elicottero Ingenuity pronto al decollo.",
-      associatedPhotoId = "mars_perseverance_jezero",
+      associatedPhotoId = "mars_ingenuity_flight",
+      xpValue = 120,
     ),
     SurfacePoi(
       id = "mars_poi_delta_sediments",
@@ -394,7 +428,8 @@ object SurfaceExplorationRepository {
       posX = -30f,
       posZ = 42f,
       description = "Pareti rocciose stratificate modellate da un antico corso d'acqua marziano oltre 3 miliardi di anni fa, ricche di argille e minerali carbonatici.",
-      associatedPhotoId = "mars_curiosity_selfie",
+      associatedPhotoId = "mars_perseverance_jezero",
+      xpValue = 150,
     ),
     SurfacePoi(
       id = "mars_poi_dune_field",
@@ -405,6 +440,7 @@ object SurfaceExplorationRepository {
       posZ = -24f,
       description = "Dune ondulate di sabbia scura ferrosa modellate dai venti marziani e solcate da dust devils che lasciano tracce intricate sul terreno.",
       associatedPhotoId = "mars_blue_sunset",
+      xpValue = 100,
     ),
 
     // Venere
@@ -461,6 +497,18 @@ object SurfaceExplorationRepository {
       posZ = 20f,
       description = "Una colonna zampillante di vapore d'acqua salata e ghiaccio che fuoriesce dalle crepe della banchisa, con la colossale sfera di Giove che domina il cielo.",
       associatedPhotoId = "jupiter_europa_cracks",
+      xpValue = 130,
+    ),
+    SurfacePoi(
+      id = "jupiter_poi_great_red_spot_view",
+      planetId = "jupiter",
+      name = "Belvedere della Grande Macchia Rossa",
+      poiType = "Punto Panoramico Siderale",
+      posX = 24f,
+      posZ = -20f,
+      description = "Visuale maestosa dell'immenso emisfero di Giove che incombe sopra la banchisa ghiacciata, con la ciclopica tempesta della Grande Macchia Rossa visibile ad occhio nudo.",
+      associatedPhotoId = "jupiter_great_red_spot",
+      xpValue = 150,
     ),
 
     // Saturno / Titano
@@ -473,18 +521,66 @@ object SurfaceExplorationRepository {
       posZ = 15f,
       description = "Il lander Huygens dell'Agenzia Spaziale Europea atterrato nel 2005 tra ciottoli di ghiaccio e colline di idrocarburi sotto una fitta nebbia arancione.",
       associatedPhotoId = "saturn_huygens_titan",
+      xpValue = 140,
+    ),
+    SurfacePoi(
+      id = "saturn_poi_kraken_mare_view",
+      planetId = "saturn",
+      name = "Falesia Costiera sul Lago di Metano (Kraken Mare)",
+      poiType = "Bacino Idrocarburico Criogenico",
+      posX = -22f,
+      posZ = 26f,
+      description = "Uno sconfinato specchio di metano ed etano liquidi calmi a -179°C, solcato da nubi dense di idrocarburi sotto la suggestiva foschia dorata della luna Titano.",
+      associatedPhotoId = "saturn_enceladus_plumes",
+      xpValue = 130,
     ),
 
-    // Terra
+    // Urano / Ariel
     SurfacePoi(
-      id = "earth_poi_spaceport",
-      planetId = "earth",
-      name = "Piattaforma di Lancio Spazioporto AstroBloom",
-      poiType = "Base Aerospaziale",
+      id = "uranus_poi_kachina_chasma",
+      planetId = "uranus",
+      name = "Gola Glaciale 'Kachina Chasma' di Ariel",
+      poiType = "Faglia da Spaccatura Criogenica",
       posX = 0f,
-      posZ = 12f,
-      description = "La torre di rifornimento e la rampa di decollo della missione terrestre, circondata da aria limpida, vegetazione e l'oceano azzurro all'orizzonte.",
-      associatedPhotoId = "earth_blue_marble",
+      posZ = 18f,
+      description = "Un profondo canyon tettonico scoperto dalla sonda Voyager 2 nel 1986. Le pareti mostrano colate lisce di criolava ad ammoniaca e ghiaccio d'acqua che hanno rimodellato il fondo della valle.",
+      associatedPhotoId = "uranus_voyager2_ariel",
+      xpValue = 130,
+    ),
+    SurfacePoi(
+      id = "uranus_poi_ariel_crater_yangoor",
+      planetId = "uranus",
+      name = "Cratere Glaciale Yangoor con Creste Radianti",
+      poiType = "Cratere da Impatto Glaciale",
+      posX = -22f,
+      posZ = 28f,
+      description = "Uno dei crateri più brillanti di Ariel, circondato da fratture concentriche e depositi di ghiaccio purissimo espulso dalle profondità della luna di Urano.",
+      associatedPhotoId = "uranus_voyager2_ariel",
+      xpValue = 120,
+    ),
+
+    // Nettuno / Tritone
+    SurfacePoi(
+      id = "neptune_poi_triton_geyser",
+      planetId = "neptune",
+      name = "Crio-Geyser di Azoto Solare (Pennacchi Hili)",
+      poiType = "Eruzione Criogenica Attiva",
+      posX = 0f,
+      posZ = 18f,
+      description = "Giganteschi geyser di azoto scuro che zampillano fino a 8 km di quota nella tenue atmosfera di Tritone a -235°C, scoperti nel sorvolo di Voyager 2.",
+      associatedPhotoId = "neptune_voyager2_triton",
+      xpValue = 150,
+    ),
+    SurfacePoi(
+      id = "neptune_poi_cantaloupe_terrain",
+      planetId = "neptune",
+      name = "Terreno 'a Buccia di Melone' (Cantaloupe)",
+      poiType = "Formazione Geologica Unica",
+      posX = -20f,
+      posZ = 30f,
+      description = "Una superficie unica nel Sistema Solare formata da depressioni ovali regolari causate da diapirismo (risalita di masse calde di ghiaccio d'azoto attraverso la crosta).",
+      associatedPhotoId = "neptune_voyager2_triton",
+      xpValue = 130,
     ),
 
     // Plutone
@@ -497,6 +593,31 @@ object SurfaceExplorationRepository {
       posZ = 16f,
       description = "Un mare di ghiaccio di azoto liscio e brillante a -230°C con montagne di ghiaccio d'acqua all'orizzonte e il Sole simile a una stella accecante nel buio.",
       associatedPhotoId = "pluto_sputnik_planitia",
+      xpValue = 120,
+    ),
+    SurfacePoi(
+      id = "pluto_poi_hillary_montes",
+      planetId = "pluto",
+      name = "Vette di Ghiaccio d'Acqua di Hillary Montes",
+      poiType = "Catena Montuosa Criogenica",
+      posX = -24f,
+      posZ = 30f,
+      description = "Montagne colossali di ghiaccio d'acqua alte oltre 3.500 metri che galleggiano sull'azoto solido più denso, scoperte dalla sonda New Horizons.",
+      associatedPhotoId = "pluto_sputnik_planitia",
+      xpValue = 130,
+    ),
+
+    // Terra
+    SurfacePoi(
+      id = "earth_poi_spaceport",
+      planetId = "earth",
+      name = "Piattaforma di Lancio Spazioporto AstroBloom",
+      poiType = "Base Aerospaziale",
+      posX = 0f,
+      posZ = 12f,
+      description = "La torre di rifornimento e la rampa di decollo della missione terrestre, circondata da aria limpida, vegetazione e l'oceano azzurro all'orizzonte.",
+      associatedPhotoId = "earth_blue_marble",
+      xpValue = 50,
     ),
   )
 
@@ -587,6 +708,19 @@ object SurfaceExplorationRepository {
       xpValue = 200,
       associatedPhotoId = "venus_venera13_surface",
     ),
+    SurfaceSample(
+      id = "sample_venus_pyrite_crust",
+      planetId = "venus",
+      name = "Condensato di Solfuro di Piombo e Bismuto",
+      mineralClass = "Glassa Metallica da Condensazione",
+      posX = 12f,
+      posZ = 22f,
+      spectrometryFormula = "PbS • Bi₂S₃ (Galena e Bismutinite)",
+      scientificDiscovery = "Sulle vette montuose di Venere i metalli pesanti vaporizzati dal caldo estremo condensano formando un rivestimento brillante simile a neve metallica.",
+      rarity = "Raro",
+      xpValue = 150,
+      associatedPhotoId = "venus_magellan_radar",
+    ),
 
     // Mercurio
     SurfaceSample(
@@ -600,6 +734,19 @@ object SurfaceExplorationRepository {
       scientificDiscovery = "I depositi scuri di Mercurio sono composti da grafite antica risalita dal galleggiamento della crosta di carbonio primordiale.",
       rarity = "Raro",
       xpValue = 120,
+      associatedPhotoId = "mercury_messenger_caloris",
+    ),
+    SurfaceSample(
+      id = "sample_mercury_volcanic_pyroxene",
+      planetId = "mercury",
+      name = "Basalto Povero di Ferro di Caloris",
+      mineralClass = "Silicato Vulcanico Primordiale",
+      posX = -14f,
+      posZ = 24f,
+      spectrometryFormula = "MgSiO₃ (Enstatite) • CaMgSi₂O₆",
+      scientificDiscovery = "La superficie di Mercurio è insolitamente povera di ferro ma ricca di magnesio e zolfo, testimoniando un ambiente primordiale altamente riducente.",
+      rarity = "Comune",
+      xpValue = 80,
       associatedPhotoId = "mercury_messenger_caloris",
     ),
 
@@ -617,6 +764,19 @@ object SurfaceExplorationRepository {
       xpValue = 200,
       associatedPhotoId = "jupiter_europa_cracks",
     ),
+    SurfaceSample(
+      id = "sample_europa_pure_ice",
+      planetId = "jupiter",
+      name = "Ghiaccio d'Acqua Amorfo Compresso",
+      mineralClass = "Ghiaccio Glaciale Extraterrestre",
+      posX = 14f,
+      posZ = 18f,
+      spectrometryFormula = "H₂O (Fase amorfa criogenica a -160°C)",
+      scientificDiscovery = "Ghiaccio puro compresso dalle immense maree gravitazionali di Giove, dotato di durezza analoga al quarzo terrestre e trasparenza cristallina.",
+      rarity = "Comune",
+      xpValue = 70,
+      associatedPhotoId = "jupiter_europa_cracks",
+    ),
 
     // Saturno / Titano
     SurfaceSample(
@@ -632,20 +792,48 @@ object SurfaceExplorationRepository {
       xpValue = 140,
       associatedPhotoId = "saturn_huygens_titan",
     ),
-
-    // Terra
     SurfaceSample(
-      id = "sample_earth_granite",
-      planetId = "earth",
-      name = "Campione di Granito e Quarzo Continentale",
-      mineralClass = "Roccia Intrusiva Continentale",
-      posX = 8f,
+      id = "sample_titan_tholins",
+      planetId = "saturn",
+      name = "Sabbia Organica di Toline Complesse",
+      mineralClass = "Idrocarburo Polimerico Prebiotico",
+      posX = -12f,
+      posZ = 16f,
+      spectrometryFormula = "(C₈H₅N)ₙ (Aerosol fotochimico)",
+      scientificDiscovery = "Particelle organiche scure nate nella stratosfera di Titano dall'irraggiamento solare del metano e cadute al suolo a formare le immense dune equatoriali.",
+      rarity = "Leggendario",
+      xpValue = 180,
+      associatedPhotoId = "saturn_huygens_titan",
+    ),
+
+    // Urano / Ariel
+    SurfaceSample(
+      id = "sample_uranus_co2_ice",
+      planetId = "uranus",
+      name = "Ghiaccio d'Ammoniaca e Diossido di Carbonio",
+      mineralClass = "Miscela Eutettica Criogenica",
+      posX = 10f,
       posZ = 14f,
-      spectrometryFormula = "SiO₂ • KAlSi₃O₈",
-      scientificDiscovery = "Il granito è la firma della tettonica a zolle e dell'abbondanza di acqua liquida: unico nel Sistema Solare per diffusione continentale.",
-      rarity = "Comune",
-      xpValue = 40,
-      associatedPhotoId = "earth_blue_marble",
+      spectrometryFormula = "CO₂ solido • NH₃ • H₂O amorfo",
+      scientificDiscovery = "Cristalli gelidi di anidride carbonica e idrati di ammoniaca che fondono a basse temperature (-100°C), alimentando l'antico criovulcanismo di Ariel.",
+      rarity = "Leggendario",
+      xpValue = 180,
+      associatedPhotoId = "uranus_voyager2_ariel",
+    ),
+
+    // Nettuno / Tritone
+    SurfaceSample(
+      id = "sample_neptune_nitrogen_frost",
+      planetId = "neptune",
+      name = "Brina d'Azoto Criogenico e Toline Rosa",
+      mineralClass = "Condensato Criogenico a 38 Kelvin",
+      posX = 12f,
+      posZ = 14f,
+      spectrometryFormula = "N₂ solido • CH₄ • CO • Toline fotolitiche",
+      scientificDiscovery = "Condensato di azoto a soli 38 Kelvin (-235°C), colorato di rosa tenue dalla conversione del metano solare in composti organici complessi.",
+      rarity = "Leggendario",
+      xpValue = 220,
+      associatedPhotoId = "neptune_voyager2_triton",
     ),
 
     // Plutone
@@ -661,6 +849,34 @@ object SurfaceExplorationRepository {
       rarity = "Leggendario",
       xpValue = 220,
       associatedPhotoId = "pluto_sputnik_planitia",
+    ),
+    SurfaceSample(
+      id = "sample_pluto_methane_frost",
+      planetId = "pluto",
+      name = "Cristallo di Brina di Metano Solido",
+      mineralClass = "Idrocarburo Volatile Sublimato",
+      posX = 14f,
+      posZ = 20f,
+      spectrometryFormula = "CH₄ (Fase solida I)",
+      scientificDiscovery = "Brina brillante che sublima ciclicamente durante l'orbita di 248 anni di Plutone, depositandosi sulle creste delle vette ghiacciate.",
+      rarity = "Raro",
+      xpValue = 140,
+      associatedPhotoId = "pluto_sputnik_planitia",
+    ),
+
+    // Terra
+    SurfaceSample(
+      id = "sample_earth_granite",
+      planetId = "earth",
+      name = "Campione di Granito e Quarzo Continentale",
+      mineralClass = "Roccia Intrusiva Continentale",
+      posX = 8f,
+      posZ = 14f,
+      spectrometryFormula = "SiO₂ • KAlSi₃O₈",
+      scientificDiscovery = "Il granito è la firma della tettonica a zolle e dell'abbondanza di acqua liquida: unico nel Sistema Solare per diffusione continentale.",
+      rarity = "Comune",
+      xpValue = 40,
+      associatedPhotoId = "earth_blue_marble",
     ),
   )
 
