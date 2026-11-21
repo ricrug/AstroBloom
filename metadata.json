@@ -1,7 +1,7 @@
 {
   "name": "AstroViaggio",
   "author": "RicRug",
-  "description": "Esplora il Sistema Solare in 3D interattivo per ragazzi con il tuo astronauta chibi a fumetti, quiz divertenti, curiosità astronomiche e navigazione libera nello spazio.",
+  "description": "Esplora il Sistema Solare in 3D interattivo per ragazzi con il tuo astronauta a fumetti, quiz divertenti, curiosità astronomiche e navigazione libera nello spazio.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
