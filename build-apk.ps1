@@ -433,11 +433,12 @@ if (-not $NoGitPush) {
 
                     if ($ghToken) {
                         $releaseTag = "v$versionName-b$build"
-                        Write-Host "Creazione tag git e invio a GitHub: $releaseTag..." -ForegroundColor DarkGray
+                        Write-Host "Creazione tag git e invio a GitHub: $releaseTag e v$versionName..." -ForegroundColor DarkGray
                         & git tag -f -a "$releaseTag" -m "Release $releaseTag" 2>&1 | Out-Null
+                        & git tag -f -a "v$versionName" -m "Release v$versionName" 2>&1 | Out-Null
                         $origEAP = $ErrorActionPreference
                         $ErrorActionPreference = "Continue"
-                        & git push origin "$releaseTag" --force 2>&1 | Out-Null
+                        & git push origin "$releaseTag" "v$versionName" --force 2>&1 | Out-Null
                         $ErrorActionPreference = $origEAP
 
                         $ghHeaders = @{
@@ -448,14 +449,18 @@ if (-not $NoGitPush) {
 
                         $releaseName = "AstroViaggio v$versionName (Build $build)"
                         $releaseBody = @(
-                            "## 🚀 AstroViaggio v$versionName (Build $build)",
+                            "## 🚀 AstroViaggio v$versionName - Major Update (Build $build)",
                             "",
-                            "### Novità dell'aggiornamento:",
-                            "- **Verifica e Perfezionamento dei Punti dell'Esplorazione (POI e Campioni)**: Tutti i punti di interesse e campioni dell'esplorazione planetaria sono stati verificati e completati per ogni pianeta del Sistema Solare (Luna, Marte, Venere, Mercurio, Giove/Europa, Saturno/Titano, Urano/Ariel, Nettuno/Tritone, Plutone).",
-                            "- **Nuovi Punti e Foto Ufficiali per Urano e Nettuno**: Aggiunti POI e campioni geologici dedicati per la luna Ariel di Urano (Kachina Chasma, Cratere Yangoor, Ghiaccio CO₂/ammoniaca) e la luna Tritone di Nettuno (Geyser Hili, Cantaloupe terrain, Brina d'azoto rosa), con fotografie ufficiali della missione Voyager 2 incorporate localmente in WebP.",
-                            "- **Arricchimento Geologico e Nuovi POI**: Introdotti nuovi punti e campioni per Giove (Belvedere Grande Macchia Rossa), Saturno (Costa Kraken Mare), Venere (Neve metallica di pirite/galena), Mercurio (Basalto di Caloris) e Plutone (Vette Hillary Montes).",
-                            "- **Persistenza Punti XP e Diario di Bordo**: Sia la scoperta dei POI (+100..150 XP) sia la raccolta dei campioni geologici (+70..220 XP) assegnano punti scientifici permanenti, memorizzati in DataStore nel profilo del giocatore.",
-                            "- **Raggio di Interazione e Tracciamento Bussola**: Il raggio di aggancio e interazione è stato esteso (8m per POI, 5m per campioni) ed è stato aggiunto il rilevatore direzionale dei campioni sulla bussola a 360° della visiera.",
+                            "Siamo orgogliosi di presentare la versione **$versionName** di AstroViaggio, un importante salto generazionale che introduce la nuova modalità di Sbarco ed Esplorazione Planetaria 3D in Prima Persona e rende l'intera applicazione 100% autonoma e offline!",
+                            "",
+                            "### 🌟 Principali Novità di AstroViaggio v${versionName}:",
+                            "- 🥾 **Nuova Modalità Sbarco ed Esplorazione Planetaria 3D (EVA)**: Scendi dalla navicella AstroBloom-I ed esplora a piedi le superfici aliene di Luna, Marte, Venere, Mercurio, Giove (Europa), Saturno (Titano), Urano (Ariel), Nettuno (Tritone) e Plutone con fisica gravitazionale specifica, salti lunari/marziani e audio ambientale.",
+                            "- 🚀 **Astronave AstroBloom-I Visibile in 3D Volumetrico**: Dopo lo sbarco l'astronave resta ancorata al suolo con fari stroboscopici, pannelli termici MLI dorati, zampe telescopiche depth-sorted e rampa di risalita a bordo.",
+                            "- 🛰️ **Archivio Fotografico Documentato 100% Offline**: 19 fotografie storiche ufficiali ad alta risoluzione (NASA, ESA, Roscosmos, JAXA, missioni Apollo, Perseverance, Curiosity, Venera, MESSENGER, Juno, Cassini-Huygens, Voyager 2 e New Horizons) incorporate direttamente nei file dell'applicazione senza alcuna dipendenza da internet.",
+                            "- 🔬 **Punti di Interesse (POI) e Campioni Geologici Dedicati**: Punti storici e scientifici con coordinate 3D, formule spettrometriche verificate, rarità ed elementi geologici unici per ogni singolo mondo del Sistema Solare.",
+                            "- ⭐ **Progressione e Punti XP Scientifici Permanenti**: Sia la scoperta dei siti storici (+100..150 XP) che l'analisi dei campioni minerali (+70..220 XP) incrementano il punteggio scientifico memorizzato nel profilo dell'astronauta.",
+                            "- 🧭 **HUD Tattico e Mirino Olografico**: Bussola azimutale a 360° con rilevamento di lander, POI e campioni minerali, minimap radar 2D, orme impresse nel regolite e curve di livello topografiche 3D.",
+                            "- 🕹️ **Controlli Pad e Visuale Fluida**: Joystick di movimento maggiorato e swipe della telecamera naturale e reattivo per un'immersione esplorativa totale a 360°.",
                             "",
                             "### 📦 Dettagli Pacchetto APK:",
                             "- **File:** $destApkName",
