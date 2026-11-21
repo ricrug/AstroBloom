@@ -672,7 +672,7 @@ fun FreeSpaceExplorer3D(
                   Spacer(modifier = Modifier.width(3.dp))
                   Text("3D", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                 }
-                if (activeBody.id != "sun") {
+                if (activeBody.id != "sun" && activeBody.id != "earth") {
                   Button(
                     onClick = { onOpenLandingSimulator(activeBody.id) },
                     colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),

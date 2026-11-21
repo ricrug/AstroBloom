@@ -1541,7 +1541,7 @@ fun FirstPersonFlightSimulator3D(
                 )
               }
             }
-            if (hudActionBody.id != "sun") {
+            if (hudActionBody.id != "sun" && hudActionBody.id != "earth") {
               Button(
                 onClick = { onOpenLandingSimulator(hudActionBody.id) },
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),

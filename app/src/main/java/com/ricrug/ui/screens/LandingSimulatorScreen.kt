@@ -399,20 +399,22 @@ fun LandingSimulatorScreen(
                   modifier = Modifier.fillMaxWidth(),
                   verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                  Button(
-                    onClick = { onStartSurfaceExploration(body.id) },
-                    colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                    modifier = Modifier.fillMaxWidth().testTag("landing_explore_button"),
-                  ) {
-                    Text(
-                      text = "🥾 Sbarca ed Esplora",
-                      style = MaterialTheme.typography.titleMedium,
-                      fontWeight = FontWeight.Bold,
-                      maxLines = 1,
-                      softWrap = false,
-                    )
+                  if (body.id != "earth") {
+                    Button(
+                      onClick = { onStartSurfaceExploration(body.id) },
+                      colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
+                      shape = RoundedCornerShape(12.dp),
+                      contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                      modifier = Modifier.fillMaxWidth().testTag("landing_explore_button"),
+                    ) {
+                      Text(
+                        text = "🥾 Sbarca ed Esplora",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                      )
+                    }
                   }
                   Row(
                     modifier = Modifier.fillMaxWidth(),

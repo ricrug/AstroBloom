@@ -380,7 +380,8 @@ fun SurfaceFirstPersonViewer3D(
             val isPadArea = !isInsideShip && change.position.x < size.width * 0.32f && change.position.y > size.height * 0.68f
             if (!isPadArea) {
               change.consume()
-              playerYawDeg = (playerYawDeg - dragAmount.x * 0.16f + 360f) % 360f
+              // Drag verso destra incrementa yaw (gira la visuale a destra), verso sinistra decrementa (gira a sinistra)
+              playerYawDeg = (playerYawDeg + dragAmount.x * 0.16f + 360f) % 360f
               playerPitchDeg = (playerPitchDeg - dragAmount.y * 0.14f).coerceIn(-48f, 48f)
             }
           }

@@ -457,7 +457,7 @@ fun PlanetDetailScreen(
       }
 
       // Landing Simulator, Surface Exploration & Planet Quiz CTAs
-      if (body.id != "sun") {
+      if (body.id != "sun" && body.id != "earth") {
         Button(
           onClick = { onOpenSurfaceExploration(body.id) },
           colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
@@ -489,6 +489,35 @@ fun PlanetDetailScreen(
             maxLines = 1,
             softWrap = false,
           )
+        }
+      } else if (body.id == "earth") {
+        Surface(
+          shape = RoundedCornerShape(18.dp),
+          color = SpaceCard,
+          border = BorderStroke(1.2.dp, CosmicCyan.copy(alpha = 0.5f)),
+          modifier = Modifier.fillMaxWidth(),
+        ) {
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text("🌍", style = MaterialTheme.typography.headlineMedium)
+            Spacer(modifier = Modifier.width(14.dp))
+            Column {
+              Text(
+                text = "Pianeta Casa & Spazioporto",
+                style = MaterialTheme.typography.titleMedium,
+                color = CosmicCyan,
+                fontWeight = FontWeight.Bold,
+              )
+              Spacer(modifier = Modifier.height(4.dp))
+              Text(
+                text = "La Terra è il nostro punto di partenza per l'esplorazione del cosmo. Per effettuare sbarchi o simulare atterraggi, seleziona la Luna, Marte o gli altri pianeti!",
+                style = MaterialTheme.typography.bodySmall,
+                color = StarlightMuted,
+              )
+            }
+          }
         }
       }
 

@@ -6,6 +6,7 @@ import android.content.ContextWrapper
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -318,33 +320,43 @@ fun SurfaceExplorationScreen(
                         .weight(1f)
                         .fillMaxWidth(),
                     ) {
-                      SubcomposeAsyncImage(
-                        model = inspectedPoiPhoto!!.imageUrl,
-                        contentDescription = inspectedPoiPhoto!!.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        loading = {
-                          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = CosmicCyan, modifier = Modifier.size(32.dp))
-                          }
-                        },
-                        error = {
-                          // Fallback grafico scientifico elegante se offline
-                          Box(
-                            modifier = Modifier
-                              .fillMaxSize()
-                              .background(Brush.verticalGradient(listOf(Color(0xFF0F172A), Color(0xFF1E293B)))),
-                            contentAlignment = Alignment.Center,
-                          ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                              Icon(Icons.Rounded.CameraAlt, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(40.dp))
-                              Spacer(modifier = Modifier.height(6.dp))
-                              Text(inspectedPoiPhoto!!.mission, color = CosmicAmber, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                              Text("Archivio Storico Ufficiale", color = StarlightMuted, style = MaterialTheme.typography.bodySmall)
+                      val poiDrawable = inspectedPoiPhoto!!.drawableRes
+                      if (poiDrawable != null && poiDrawable != 0) {
+                        Image(
+                          painter = painterResource(id = poiDrawable),
+                          contentDescription = inspectedPoiPhoto!!.title,
+                          contentScale = ContentScale.Crop,
+                          modifier = Modifier.fillMaxSize(),
+                        )
+                      } else {
+                        SubcomposeAsyncImage(
+                          model = inspectedPoiPhoto!!.imageUrl,
+                          contentDescription = inspectedPoiPhoto!!.title,
+                          contentScale = ContentScale.Crop,
+                          modifier = Modifier.fillMaxSize(),
+                          loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                              CircularProgressIndicator(color = CosmicCyan, modifier = Modifier.size(32.dp))
                             }
-                          }
-                        },
-                      )
+                          },
+                          error = {
+                            // Fallback grafico scientifico elegante se offline
+                            Box(
+                              modifier = Modifier
+                                .fillMaxSize()
+                                .background(Brush.verticalGradient(listOf(Color(0xFF0F172A), Color(0xFF1E293B)))),
+                              contentAlignment = Alignment.Center,
+                            ) {
+                              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Rounded.CameraAlt, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(40.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(inspectedPoiPhoto!!.mission, color = CosmicAmber, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text("Archivio Storico Ufficiale", color = StarlightMuted, style = MaterialTheme.typography.bodySmall)
+                              }
+                            }
+                          },
+                        )
+                      }
 
                       // Badge Missione in sovrimpressione
                       Surface(
@@ -557,17 +569,27 @@ fun SurfaceExplorationScreen(
                 ) {
                   Column(modifier = Modifier.fillMaxSize()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                      SubcomposeAsyncImage(
-                        model = collectedSamplePhoto!!.imageUrl,
-                        contentDescription = collectedSamplePhoto!!.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        loading = {
-                          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = CosmicAmber, modifier = Modifier.size(28.dp))
-                          }
-                        },
-                      )
+                      val sampleDrawable = collectedSamplePhoto!!.drawableRes
+                      if (sampleDrawable != null && sampleDrawable != 0) {
+                        Image(
+                          painter = painterResource(id = sampleDrawable),
+                          contentDescription = collectedSamplePhoto!!.title,
+                          contentScale = ContentScale.Crop,
+                          modifier = Modifier.fillMaxSize(),
+                        )
+                      } else {
+                        SubcomposeAsyncImage(
+                          model = collectedSamplePhoto!!.imageUrl,
+                          contentDescription = collectedSamplePhoto!!.title,
+                          contentScale = ContentScale.Crop,
+                          modifier = Modifier.fillMaxSize(),
+                          loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                              CircularProgressIndicator(color = CosmicAmber, modifier = Modifier.size(28.dp))
+                            }
+                          },
+                        )
+                      }
                       Surface(
                         color = Color(0xDD0B1229),
                         shape = RoundedCornerShape(bottomEnd = 8.dp),
@@ -788,32 +810,42 @@ fun SurfaceExplorationScreen(
                       .fillMaxHeight(),
                   ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                      SubcomposeAsyncImage(
-                        model = p.imageUrl,
-                        contentDescription = p.title,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize(),
-                        loading = {
-                          Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = CosmicCyan, modifier = Modifier.size(36.dp))
-                          }
-                        },
-                        error = {
-                          Box(
-                            modifier = Modifier
-                              .fillMaxSize()
-                              .background(Color(0xFF0F172A)),
-                            contentAlignment = Alignment.Center,
-                          ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                              Icon(Icons.Rounded.CameraAlt, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(48.dp))
-                              Spacer(modifier = Modifier.height(8.dp))
-                              Text(p.mission, color = CosmicAmber, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                              Text("Archivio Documentale Ufficiale", color = StarlightMuted, style = MaterialTheme.typography.bodySmall)
+                      val galleryDrawable = p.drawableRes
+                      if (galleryDrawable != null && galleryDrawable != 0) {
+                        Image(
+                          painter = painterResource(id = galleryDrawable),
+                          contentDescription = p.title,
+                          contentScale = ContentScale.Fit,
+                          modifier = Modifier.fillMaxSize(),
+                        )
+                      } else {
+                        SubcomposeAsyncImage(
+                          model = p.imageUrl,
+                          contentDescription = p.title,
+                          contentScale = ContentScale.Fit,
+                          modifier = Modifier.fillMaxSize(),
+                          loading = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                              CircularProgressIndicator(color = CosmicCyan, modifier = Modifier.size(36.dp))
                             }
-                          }
-                        },
-                      )
+                          },
+                          error = {
+                            Box(
+                              modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF0F172A)),
+                              contentAlignment = Alignment.Center,
+                            ) {
+                              Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Rounded.CameraAlt, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(48.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(p.mission, color = CosmicAmber, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text("Archivio Documentale Ufficiale", color = StarlightMuted, style = MaterialTheme.typography.bodySmall)
+                              }
+                            }
+                          },
+                        )
+                      }
 
                       Surface(
                         color = Color(0xDD0B1229),

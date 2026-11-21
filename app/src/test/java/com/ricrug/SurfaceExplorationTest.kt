@@ -59,6 +59,7 @@ class SurfaceExplorationTest {
       assertTrue("Caption must be informative (>20 chars): ${p.id}", p.caption.length > 20)
       assertTrue("Scientific tip must be present (>15 chars): ${p.id}", p.scientificTip.length > 15)
       assertTrue("Credit must not be blank: ${p.id}", p.credit.isNotBlank())
+      assertTrue("Drawable resource must be bundled locally for 100% offline access: ${p.id}", p.drawableRes != null && p.drawableRes != 0)
     }
 
     // Verify key historical missions are documented

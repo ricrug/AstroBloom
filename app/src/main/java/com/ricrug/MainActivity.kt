@@ -36,6 +36,7 @@ import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -355,15 +356,21 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
               arguments = listOf(navArgument("planetId") { type = NavType.StringType }),
             ) { backStackEntry ->
               val planetId = backStackEntry.arguments?.getString("planetId") ?: "moon"
-              LandingSimulatorScreen(
-                planetId = planetId,
-                chibiProfile = chibiProfile,
-                onMarkExplored = viewModel::markPlanetExplored,
-                onBack = { navController.popBackStack() },
-                onStartSurfaceExploration = { targetId ->
-                  navController.navigate("surface_explore/$targetId")
-                },
-              )
+              if (planetId == "earth") {
+                LaunchedEffect(Unit) {
+                  navController.popBackStack()
+                }
+              } else {
+                LandingSimulatorScreen(
+                  planetId = planetId,
+                  chibiProfile = chibiProfile,
+                  onMarkExplored = viewModel::markPlanetExplored,
+                  onBack = { navController.popBackStack() },
+                  onStartSurfaceExploration = { targetId ->
+                    navController.navigate("surface_explore/$targetId")
+                  },
+                )
+              }
             }
 
             composable(
@@ -371,12 +378,18 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
               arguments = listOf(navArgument("planetId") { type = NavType.StringType }),
             ) { backStackEntry ->
               val planetId = backStackEntry.arguments?.getString("planetId") ?: "moon"
-              SurfaceExplorationScreen(
-                planetId = planetId,
-                chibiProfile = chibiProfile,
-                onExitExploration = { navController.popBackStack() },
-                onMarkPlanetExplored = viewModel::markPlanetExplored,
-              )
+              if (planetId == "earth") {
+                LaunchedEffect(Unit) {
+                  navController.popBackStack()
+                }
+              } else {
+                SurfaceExplorationScreen(
+                  planetId = planetId,
+                  chibiProfile = chibiProfile,
+                  onExitExploration = { navController.popBackStack() },
+                  onMarkPlanetExplored = viewModel::markPlanetExplored,
+                )
+              }
             }
 
             composable(route = ROUTE_FIRST_PERSON_SIM) {
