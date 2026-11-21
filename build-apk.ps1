@@ -481,7 +481,8 @@ if (-not $NoGitPush) {
                                 draft = $false
                                 prerelease = $false
                             } | ConvertTo-Json -Depth 4
-                            $newRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases" -Headers $ghHeaders -Method Post -Body $createPayload -ContentType "application/json"
+                            $createBytes = [System.Text.Encoding]::UTF8.GetBytes($createPayload)
+                            $newRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/ricrug/AstroBloom/releases" -Headers $ghHeaders -Method Post -Body $createBytes -ContentType "application/json; charset=utf-8"
                             $releaseId = $newRelease.id
                         }
 
