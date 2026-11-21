@@ -281,6 +281,8 @@ fun FirstPersonFlightSimulator3D(
   // Left Thumb: Cloche di Volo 3D (stickX = Virata/Yaw, stickY = Beccheggio/Pitch)
   var stickX by remember { mutableFloatStateOf(0f) }
   var stickY by remember { mutableFloatStateOf(0f) }
+  // Modalita controller pollice sinistro: 0 = Cloche 3D Analogica, 1 = D-Pad Tasti Direzionali
+  var leftControlMode by remember { mutableIntStateOf(0) }
 
   val sunDist = shipPos.length()
 
@@ -310,13 +312,13 @@ fun FirstPersonFlightSimulator3D(
     label = "warpPulse",
   )
 
-  // 140 local 3D stars wrapped in a 400-unit cube around ship
+  // 420 local 3D stars wrapped in a 400-unit cube around ship for dense, vivid motion perception
   val starCubeCoords = remember {
-    List(140) { i ->
+    List(420) { i ->
       val x = (((i * 97 + 13) % 400) - 200).toFloat()
       val y = (((i * 151 + 47) % 400) - 200).toFloat()
       val z = (((i * 223 + 89) % 400) - 200).toFloat()
-      val brightness = 0.45f + (i % 5) * 0.12f
+      val brightness = 0.40f + (i % 6) * 0.10f
       OrbitVec3(x, y, z) to brightness
     }
   }
@@ -351,32 +353,32 @@ fun FirstPersonFlightSimulator3D(
           val stickMag = hypot(stickX, stickY)
           if (stickMag > 0.02f) {
             isAutopilotSteering = false
-            // Yaw (virata decisa e agile): stickX > 0 (destra) -> vira prontamente a destra
-            val targetYawVel = -stickX * 2.85f
-            // Pitch (beccheggio): Arcade (spingi su = muso in alto) vs Aero (spingi su = picchiata)
-            val pitchFactor = if (invertPitch) 2.45f else -2.45f
+            // Yaw (virata decisa, agile e potente a ~200 deg/s): stickX > 0 (destra) -> vira subito a destra
+            val targetYawVel = -stickX * 3.50f
+            // Pitch (beccheggio potente): Arcade (spingi su = muso in alto) vs Aero (spingi su = picchiata)
+            val pitchFactor = if (invertPitch) 2.85f else -2.85f
             val targetPitchVel = stickY * pitchFactor
-            // Smoothing scattante a risposta immediata senza ritardi gommosi
-            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 20.0f).coerceAtMost(1f)
-            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 20.0f).coerceAtMost(1f)
+            // Smoothing scattante e reattivo a 24f (zero latenza)
+            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 24.0f).coerceAtMost(1f)
+            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 24.0f).coerceAtMost(1f)
 
             shipHeading += smoothYawVel * dt
             shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
-            // Rollio coordinato in virata naturale
-            val targetBank = (-stickX * 0.45f) + manualRollOffset
-            shipBank += (targetBank - shipBank) * (dt * 7.5f).coerceAtMost(1f)
+            // Rollio coordinato in virata naturale e visibile
+            val targetBank = (-stickX * 0.50f) + manualRollOffset
+            shipBank += (targetBank - shipBank) * (dt * 8.5f).coerceAtMost(1f)
           } else {
             // Arresto rapido e preciso della rotazione al rilascio del pollice
-            smoothYawVel += (0f - smoothYawVel) * (dt * 14.0f).coerceAtMost(1f)
-            smoothPitchVel += (0f - smoothPitchVel) * (dt * 14.0f).coerceAtMost(1f)
+            smoothYawVel += (0f - smoothYawVel) * (dt * 16.0f).coerceAtMost(1f)
+            smoothPitchVel += (0f - smoothPitchVel) * (dt * 16.0f).coerceAtMost(1f)
             if (abs(smoothYawVel) < 0.005f) smoothYawVel = 0f
             if (abs(smoothPitchVel) < 0.005f) smoothPitchVel = 0f
             if (abs(smoothYawVel) > 0.0001f) shipHeading += smoothYawVel * dt
             if (abs(smoothPitchVel) > 0.0001f) shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
 
             // Auto-leveling orizzontale morbido
-            shipBank += (manualRollOffset - shipBank) * (dt * 6.5f).coerceAtMost(1f)
+            shipBank += (manualRollOffset - shipBank) * (dt * 7.0f).coerceAtMost(1f)
           }
 
           if (isAutopilotSteering && autopilotTargetId != null) {
@@ -683,33 +685,39 @@ fun FirstPersonFlightSimulator3D(
       val shipNoseBottomY = size.height * 0.88f
       val shipNoseTipY = size.height * 0.58f
 
-      // 1. Muso aerodinamico centrale dell'astronave che punta verso lo spazio
+      // 1. Muso aerodinamico centrale dell'astronave con rollio/sway reattivo alla cloche
+      val noseSwayX = -stickX * 24f
+      val nosePitchY = stickY * (if (invertPitch) -16f else 16f)
+      val noseTipX = center.x + noseSwayX
+      val noseTipY = shipNoseTipY + nosePitchY
+      val noseBottomY = shipNoseBottomY + nosePitchY * 0.4f
+
       val nosePath = Path().apply {
-        moveTo(center.x, shipNoseTipY)
-        lineTo(center.x + shipNoseW * 0.5f, shipNoseBottomY)
-        lineTo(center.x - shipNoseW * 0.5f, shipNoseBottomY)
+        moveTo(noseTipX, noseTipY)
+        lineTo(center.x + shipNoseW * 0.5f, noseBottomY)
+        lineTo(center.x - shipNoseW * 0.5f, noseBottomY)
         close()
       }
       drawPath(
         path = nosePath,
         brush = Brush.verticalGradient(
           colors = listOf(Color(0xFF2E3B5E), Color(0xFF161E33), Color(0xFF0C101D)),
-          startY = shipNoseTipY,
-          endY = shipNoseBottomY,
+          startY = noseTipY,
+          endY = noseBottomY,
         ),
       )
       // Linea di cresta e pannellature metalliche del muso
       drawLine(
         brush = Brush.verticalGradient(listOf(CosmicCyan, Color(0xFF1E2844))),
-        start = Offset(center.x, shipNoseTipY),
-        end = Offset(center.x, shipNoseBottomY),
+        start = Offset(noseTipX, noseTipY),
+        end = Offset(center.x, noseBottomY),
         strokeWidth = 2.5f,
       )
       // Sensore al plasma pulsante sulla punta del muso
       drawCircle(
         color = CosmicCyan.copy(alpha = 0.85f),
         radius = 4f,
-        center = Offset(center.x, shipNoseTipY + 3f),
+        center = Offset(noseTipX, noseTipY + 3f),
       )
 
       // Getti RCS laterali sul muso che si accendono virando con la cloche
@@ -1241,109 +1249,266 @@ fun FirstPersonFlightSimulator3D(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        // 1. POSTAZIONE POLLICE SINISTRO: Cloche di Volo 3D (Virata & Beccheggio)
+        // 1. POSTAZIONE POLLICE SINISTRO: CONTROLLER DI VOLO IBRIDO (CLOCHE ANALOGICA + D-PAD TATTICO)
         Column(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(3.dp),
-          modifier = Modifier.width(122.dp),
+          modifier = Modifier.width(134.dp),
         ) {
-          // Barra Integrità Scudo e Scafo compatta
+          // Selettore Rapido Modalità: [CLOCHE 3D] vs [D-PAD FRECCE]
           Row(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically,
           ) {
-            Icon(Icons.Rounded.Shield, contentDescription = null, tint = CosmicCyan, modifier = Modifier.size(11.dp))
-            Text("SCUDI 100%", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = CosmicCyan, fontWeight = FontWeight.Bold)
-            Text("•", color = StarlightMuted, fontSize = 9.sp)
-            Text("SCAFO 100%", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = AuroraGreen, fontWeight = FontWeight.Bold)
-          }
-
-          val joyBoxSizeDp = 100.dp
-          val joyLeftMaxPx = with(density) { 38.dp.toPx() }
-          val isStickActive = abs(stickX) > 0.02f || abs(stickY) > 0.02f
-
-          Box(
-            modifier =
-              Modifier.size(joyBoxSizeDp)
-                .background(Color(0xD90A1128), CircleShape)
-                .border(2.dp, Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else CosmicCyan, Color(0xFF14203D))), CircleShape)
-                .pointerInput(Unit) {
-                  val centerPx = size.width / 2f
-                  val deadzone = 3.dp.toPx()
-                  fun updateJoy(pos: Offset) {
-                    isAutopilotSteering = false
-                    val dx = pos.x - centerPx
-                    val dy = pos.y - centerPx
-                    val dist = hypot(dx, dy)
-                    if (dist > deadzone) {
-                      val norm = ((dist - deadzone) / (joyLeftMaxPx - deadzone)).coerceIn(0f, 1f)
-                      // Curva progressiva ergonomica e pronta: risposta tangibile fin dai primi millimetri
-                      val curved = norm * (0.60f + 0.40f * norm)
-                      val ang = atan2(dy, dx)
-                      stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
-                      stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
-                    } else {
-                      stickX = 0f
-                      stickY = 0f
-                    }
-                  }
-                  awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    down.consume()
-                    isAutopilotSteering = false
-                    updateJoy(down.position)
-
-                    while (true) {
-                      val event = awaitPointerEvent()
-                      val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                      if (!change.pressed) {
-                        change.consume()
-                        stickX = 0f
-                        stickY = 0f
-                        break
-                      }
-                      change.consume()
-                      isAutopilotSteering = false
-                      updateJoy(change.position)
-                    }
-                  }
-                }
-                .testTag("cockpit_flight_stick"),
-            contentAlignment = Alignment.Center,
-          ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-              val c = Offset(size.width / 2f, size.height / 2f)
-              // Guide cerchi e tacche al neon
-              drawCircle(color = CosmicCyan.copy(alpha = if (isStickActive) 0.65f else 0.25f), radius = size.minDimension * 0.46f, style = Stroke(width = if (isStickActive) 2.2f else 1.6f))
-              drawCircle(color = CosmicCyan.copy(alpha = 0.16f), radius = size.minDimension * 0.24f, style = Stroke(width = 1f))
-              // Mirino centrale
-              drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x - 10f, c.y), end = Offset(c.x + 10f, c.y), strokeWidth = 1.2f)
-              drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x, c.y - 10f), end = Offset(c.x, c.y + 10f), strokeWidth = 1.2f)
-
-              // Frecce guida con retroilluminazione attiva quando si spinge la cloche
-              val upColor = if (stickY < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
-              val downColor = if (stickY > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
-              val leftColor = if (stickX < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
-              val rightColor = if (stickX > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
-
-              drawLine(color = upColor, start = Offset(c.x, 5f), end = Offset(c.x, 14f), strokeWidth = if (stickY < -0.1f) 2.8f else 1.8f) // Cabra/Su
-              drawLine(color = downColor, start = Offset(c.x, size.height - 5f), end = Offset(c.x, size.height - 14f), strokeWidth = if (stickY > 0.1f) 2.8f else 1.8f) // Picchia/Giù
-              drawLine(color = leftColor, start = Offset(5f, c.y), end = Offset(14f, c.y), strokeWidth = if (stickX < -0.1f) 2.8f else 1.8f) // Sx
-              drawLine(color = rightColor, start = Offset(size.width - 5f, c.y), end = Offset(size.width - 14f, c.y), strokeWidth = if (stickX > 0.1f) 2.8f else 1.8f) // Dx
-
-              // Se attivo, raggio laser che collega il centro alla manopola
-              val knob = Offset(c.x + stickX * joyLeftMaxPx, c.y + stickY * joyLeftMaxPx)
-              if (isStickActive) {
-                drawLine(color = CosmicCyan.copy(alpha = 0.70f), start = c, end = knob, strokeWidth = 2.6f)
-              }
-              // Manopola cloche tridimensionale
-              drawCircle(brush = Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else Color(0xFFFFB703), Color(0xFFE76F51))), radius = 14.dp.toPx(), center = knob)
-              drawCircle(color = ComicInk, radius = 14.dp.toPx(), center = knob, style = Stroke(width = 2.2f))
-              drawCircle(color = StarlightWhite, radius = 3.dp.toPx(), center = Offset(knob.x - 3.dp.toPx(), knob.y - 3.dp.toPx()))
+            Surface(
+              onClick = { leftControlMode = 0 },
+              color = if (leftControlMode == 0) CosmicCyan.copy(alpha = 0.32f) else SpaceCard,
+              shape = RoundedCornerShape(6.dp),
+              border = BorderStroke(1.dp, if (leftControlMode == 0) CosmicCyan else Color.Transparent),
+              modifier = Modifier.height(20.dp),
+            ) {
+              Text(
+                text = "CLOCHE",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                color = if (leftControlMode == 0) StarlightWhite else StarlightMuted,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+              )
+            }
+            Surface(
+              onClick = { leftControlMode = 1 },
+              color = if (leftControlMode == 1) AuroraGreen.copy(alpha = 0.32f) else SpaceCard,
+              shape = RoundedCornerShape(6.dp),
+              border = BorderStroke(1.dp, if (leftControlMode == 1) AuroraGreen else Color.Transparent),
+              modifier = Modifier.height(20.dp),
+            ) {
+              Text(
+                text = "D-PAD",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                color = if (leftControlMode == 1) StarlightWhite else StarlightMuted,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+              )
             }
           }
 
-          // Telemetria dinamica in tempo reale sotto la cloche
+          val joyBoxSizeDp = 104.dp
+          val joyBoxPx = with(density) { joyBoxSizeDp.toPx() }
+          val centerPx = joyBoxPx / 2f
+          val maxRadiusPx = joyBoxPx * 0.42f
+          val deadzonePx = with(density) { 3.dp.toPx() }
+          val isStickActive = abs(stickX) > 0.02f || abs(stickY) > 0.02f
+
+          fun updateStickPos(touchPos: Offset) {
+            isAutopilotSteering = false
+            val dx = touchPos.x - centerPx
+            val dy = touchPos.y - centerPx
+            val dist = hypot(dx, dy)
+            if (dist > deadzonePx) {
+              val norm = ((dist - deadzonePx) / (maxRadiusPx - deadzonePx)).coerceIn(0f, 1f)
+              val curved = norm * (0.65f + 0.35f * norm)
+              val ang = atan2(dy, dx)
+              stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
+              stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
+            } else {
+              stickX = 0f
+              stickY = 0f
+            }
+          }
+
+          if (leftControlMode == 0) {
+            // ==========================================
+            // MODALITÀ 0: CLOCHE 3D ANALOGICA CON MOLLA
+            // ==========================================
+            Box(
+              modifier =
+                Modifier.size(joyBoxSizeDp)
+                  .background(Color(0xD90A1128), CircleShape)
+                  .border(2.dp, Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else CosmicCyan, Color(0xFF14203D))), CircleShape)
+                  .pointerInput(Unit) {
+                    detectTapGestures(
+                      onPress = { offset ->
+                        updateStickPos(offset)
+                        tryAwaitRelease()
+                        stickX = 0f
+                        stickY = 0f
+                      }
+                    )
+                  }
+                  .pointerInput(Unit) {
+                    detectDragGestures(
+                      onDragStart = { offset -> updateStickPos(offset) },
+                      onDragEnd = {
+                        stickX = 0f
+                        stickY = 0f
+                      },
+                      onDragCancel = {
+                        stickX = 0f
+                        stickY = 0f
+                      },
+                    ) { change, _ ->
+                      change.consume()
+                      updateStickPos(change.position)
+                    }
+                  }
+                  .testTag("cockpit_flight_stick"),
+              contentAlignment = Alignment.Center,
+            ) {
+              Canvas(modifier = Modifier.fillMaxSize()) {
+                val c = Offset(size.width / 2f, size.height / 2f)
+                // Guide cerchi e tacche al neon
+                drawCircle(color = CosmicCyan.copy(alpha = if (isStickActive) 0.65f else 0.25f), radius = size.minDimension * 0.46f, style = Stroke(width = if (isStickActive) 2.2f else 1.6f))
+                drawCircle(color = CosmicCyan.copy(alpha = 0.16f), radius = size.minDimension * 0.24f, style = Stroke(width = 1f))
+                // Mirino centrale
+                drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x - 10f, c.y), end = Offset(c.x + 10f, c.y), strokeWidth = 1.2f)
+                drawLine(color = CosmicCyan.copy(alpha = 0.35f), start = Offset(c.x, c.y - 10f), end = Offset(c.x, c.y + 10f), strokeWidth = 1.2f)
+
+                // Frecce guida con retroilluminazione attiva quando si spinge la cloche
+                val upColor = if (stickY < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+                val downColor = if (stickY > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+                val leftColor = if (stickX < -0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+                val rightColor = if (stickX > 0.1f) CosmicAmber else CosmicCyan.copy(alpha = 0.45f)
+
+                drawLine(color = upColor, start = Offset(c.x, 5f), end = Offset(c.x, 14f), strokeWidth = if (stickY < -0.1f) 3f else 1.8f) // Cabra/Su
+                drawLine(color = downColor, start = Offset(c.x, size.height - 5f), end = Offset(c.x, size.height - 14f), strokeWidth = if (stickY > 0.1f) 3f else 1.8f) // Picchia/Giù
+                drawLine(color = leftColor, start = Offset(5f, c.y), end = Offset(14f, c.y), strokeWidth = if (stickX < -0.1f) 3f else 1.8f) // Sx
+                drawLine(color = rightColor, start = Offset(size.width - 5f, c.y), end = Offset(size.width - 14f, c.y), strokeWidth = if (stickX > 0.1f) 3f else 1.8f) // Dx
+
+                // Raggio laser dinamico di forza
+                val knob = Offset(c.x + stickX * maxRadiusPx, c.y + stickY * maxRadiusPx)
+                if (isStickActive) {
+                  drawLine(color = CosmicCyan.copy(alpha = 0.70f), start = c, end = knob, strokeWidth = 2.6f)
+                }
+                // Manopola cloche tridimensionale
+                drawCircle(brush = Brush.radialGradient(listOf(if (isStickActive) CosmicAmber else Color(0xFFFFB703), Color(0xFFE76F51))), radius = 15.dp.toPx(), center = knob)
+                drawCircle(color = ComicInk, radius = 15.dp.toPx(), center = knob, style = Stroke(width = 2.2f))
+                drawCircle(color = StarlightWhite, radius = 3.dp.toPx(), center = Offset(knob.x - 3.dp.toPx(), knob.y - 3.dp.toPx()))
+              }
+            }
+          } else {
+            // ==========================================
+            // MODALITÀ 1: D-PAD TATTICO (4 TASTI VIRTUALI)
+            // ==========================================
+            Box(
+              modifier =
+                Modifier.size(joyBoxSizeDp)
+                  .background(Color(0xD90A1128), RoundedCornerShape(16.dp))
+                  .border(2.dp, Brush.radialGradient(listOf(AuroraGreen, Color(0xFF14203D))), RoundedCornerShape(16.dp))
+                  .testTag("cockpit_flight_dpad"),
+              contentAlignment = Alignment.Center,
+            ) {
+              // Freccia SU (Cabra)
+              Surface(
+                color = if (stickY < -0.3f) CosmicAmber else SpaceCard,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.2.dp, if (stickY < -0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                modifier = Modifier
+                  .align(Alignment.TopCenter)
+                  .padding(top = 4.dp)
+                  .size(width = 46.dp, height = 30.dp)
+                  .pointerInput(Unit) {
+                    detectTapGestures(
+                      onPress = {
+                        isAutopilotSteering = false
+                        stickY = -1.0f
+                        tryAwaitRelease()
+                        stickY = 0f
+                      }
+                    )
+                  },
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Text("▲ SU", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite)
+                }
+              }
+
+              // Freccia GIÙ (Picchia)
+              Surface(
+                color = if (stickY > 0.3f) CosmicAmber else SpaceCard,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.2.dp, if (stickY > 0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                modifier = Modifier
+                  .align(Alignment.BottomCenter)
+                  .padding(bottom = 4.dp)
+                  .size(width = 46.dp, height = 30.dp)
+                  .pointerInput(Unit) {
+                    detectTapGestures(
+                      onPress = {
+                        isAutopilotSteering = false
+                        stickY = 1.0f
+                        tryAwaitRelease()
+                        stickY = 0f
+                      }
+                    )
+                  },
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Text("▼ GIÙ", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite)
+                }
+              }
+
+              // Freccia SX (Vira a Sinistra)
+              Surface(
+                color = if (stickX < -0.3f) CosmicAmber else SpaceCard,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.2.dp, if (stickX < -0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                modifier = Modifier
+                  .align(Alignment.CenterStart)
+                  .padding(start = 4.dp)
+                  .size(width = 34.dp, height = 40.dp)
+                  .pointerInput(Unit) {
+                    detectTapGestures(
+                      onPress = {
+                        isAutopilotSteering = false
+                        stickX = -1.0f
+                        tryAwaitRelease()
+                        stickX = 0f
+                      }
+                    )
+                  },
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Text("◀ SX", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite)
+                }
+              }
+
+              // Freccia DX (Vira a Destra)
+              Surface(
+                color = if (stickX > 0.3f) CosmicAmber else SpaceCard,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.2.dp, if (stickX > 0.3f) CosmicAmber else CosmicCyan.copy(alpha = 0.6f)),
+                modifier = Modifier
+                  .align(Alignment.CenterEnd)
+                  .padding(end = 4.dp)
+                  .size(width = 34.dp, height = 40.dp)
+                  .pointerInput(Unit) {
+                    detectTapGestures(
+                      onPress = {
+                        isAutopilotSteering = false
+                        stickX = 1.0f
+                        tryAwaitRelease()
+                        stickX = 0f
+                      }
+                    )
+                  },
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Text("DX ▶", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, fontWeight = FontWeight.Bold), color = StarlightWhite)
+                }
+              }
+
+              // Icona centrale D-Pad
+              Box(
+                modifier = Modifier
+                  .size(20.dp)
+                  .background(Color(0xFF0F1A35), CircleShape)
+                  .border(1.dp, AuroraGreen.copy(alpha = 0.6f), CircleShape),
+                contentAlignment = Alignment.Center,
+              ) {
+                Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, tint = AuroraGreen, modifier = Modifier.size(12.dp))
+              }
+            }
+          }
+
+          // Telemetria dinamica in tempo reale sotto il controller
           val stickMagnitude = hypot(stickX, stickY)
           val stickLabel = if (stickMagnitude > 0.04f) {
             val yawPct = (abs(stickX) * 100f).roundToInt()
@@ -1352,7 +1517,7 @@ fun FirstPersonFlightSimulator3D(
             val pitchDir = if (stickY < 0f) (if (invertPitch) "GIÙ" else "SU") else (if (invertPitch) "SU" else "GIÙ")
             "$yawDir $yawPct% • $pitchDir $pitchPct%"
           } else {
-            "CLOCHE 3D (PRONTA)"
+            if (leftControlMode == 0) "CLOCHE (PRONTA)" else "D-PAD (PRONTO)"
           }
           Text(
             text = stickLabel,
