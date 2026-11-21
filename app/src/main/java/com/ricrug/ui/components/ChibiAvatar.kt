@@ -125,7 +125,7 @@ fun ChibiAvatar(
           painterResource(
             id = if (useFullBody) R.drawable.img_chibi_character else R.drawable.img_chibi_portrait,
           ),
-        contentDescription = "${profile.name} personaggio chibi",
+        contentDescription = "${profile.name} personaggio",
         contentScale = if (useFullBody) ContentScale.Fit else ContentScale.Crop,
         modifier = Modifier.fillMaxSize().clip(frameShape),
       )

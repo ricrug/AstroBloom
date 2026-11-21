@@ -116,7 +116,7 @@ fun PlanetsHomeScreen(
                   modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Il Mio Chibi", color = ComicInk, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                Text("Il Mio Personaggio", color = ComicInk, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
               }
               Button(
                 onClick = onOpenFreeExplore,

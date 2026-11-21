@@ -475,7 +475,7 @@ fun SurfaceExplorationScreen(
                 }
 
                 item {
-                  // Commento del copilota Chibi
+                  // Commento del copilota
                   Row(verticalAlignment = Alignment.CenterVertically) {
                     ChibiAvatar(profile = chibiProfile, size = 48.dp, expression = ChibiExpression.AMAZED)
                     Spacer(modifier = Modifier.width(8.dp))
