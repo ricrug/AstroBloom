@@ -8,14 +8,19 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.OrbitalMechanics
 import com.example.data.SolarSystemData
 import com.example.model.ChibiProfile
+import com.example.ui.screens.FirstPersonSimulatorScreen
+import com.example.ui.screens.FreeExploreScreen
 import com.example.ui.screens.LabsScreen
 import com.example.ui.screens.PlanetDetailScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.labs.CosmicBathtubLab
 import com.example.ui.screens.labs.OrbitsAndSeasonsLab
 import com.example.ui.screens.labs.SpaceThermometerLab
 import com.example.ui.theme.AstroViaggioTheme
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -130,5 +135,94 @@ class ExampleRobolectricTest {
     composeTestRule.onNodeWithText("Estate in Italia", substring = true).assertExists()
 
     composeTestRule.onNodeWithText("+465°C").assertExists()
+  }
+
+  @Test
+  fun `splash screen displays school logo title credits and completes`() {
+    composeTestRule.mainClock.autoAdvance = false
+    var finished = false
+    composeTestRule.setContent {
+      AstroViaggioTheme {
+        SplashScreen(onSplashFinished = { finished = true })
+      }
+    }
+
+    repeat(10) { composeTestRule.mainClock.advanceTimeByFrame() }
+    composeTestRule.onNodeWithTag("splash_school_logo").assertExists()
+    composeTestRule.onNodeWithTag("splash_school_name").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("splash_app_name").assertIsDisplayed()
+    composeTestRule.onNodeWithText("Credits: AstroBloom", substring = true).assertIsDisplayed()
+
+    composeTestRule.mainClock.advanceTimeBy(3700)
+    assertTrue(finished)
+  }
+
+  @Test
+  fun `orbital mechanics models distinct ecliptic inclinations`() {
+    val earth = SolarSystemData.getPlanetById("earth")
+    val mercury = SolarSystemData.getPlanetById("mercury")
+    val pluto = SolarSystemData.getPlanetById("pluto")
+
+    assertEquals(0.0f, OrbitalMechanics.elementsFor("earth").inclinationDeg, 0.01f)
+    assertEquals(7.0f, OrbitalMechanics.elementsFor("mercury").inclinationDeg, 0.01f)
+    assertEquals(17.2f, OrbitalMechanics.elementsFor("pluto").inclinationDeg, 0.01f)
+
+    val earthMaxY = OrbitalMechanics.sampleOrbitLoop(earth, 0f).maxOf { abs(it.y) }
+    val mercuryMaxY = OrbitalMechanics.sampleOrbitLoop(mercury, 0f).maxOf { abs(it.y) }
+    val plutoMaxY = OrbitalMechanics.sampleOrbitLoop(pluto, 0f).maxOf { abs(it.y) }
+
+    assertTrue(earthMaxY < 0.01f)
+    assertTrue(mercuryMaxY > 5f)
+    assertTrue(plutoMaxY > 100f)
+  }
+
+  @Test
+  fun `free explore screen launches first person cockpit simulator`() {
+    composeTestRule.mainClock.autoAdvance = false
+    var launchedCockpit = false
+    composeTestRule.setContent {
+      AstroViaggioTheme {
+        FreeExploreScreen(
+          chibiProfile = ChibiProfile(),
+          onOpenPlanetDetail = {},
+          onOpenLandingSimulator = {},
+          onOpenFirstPersonCockpit = { launchedCockpit = true },
+        )
+      }
+    }
+
+    repeat(5) { composeTestRule.mainClock.advanceTimeByFrame() }
+    composeTestRule.onNodeWithTag("launch_cockpit_simulator_button").assertIsDisplayed().performClick()
+    assertTrue(launchedCockpit)
+  }
+
+  @Test
+  @Config(sdk = [36], qualifiers = "w891dp-h411dp")
+  fun `first person flight simulator runs in landscape and exits via cockpit button`() {
+    composeTestRule.mainClock.autoAdvance = false
+    var exited = false
+    composeTestRule.setContent {
+      AstroViaggioTheme {
+        FirstPersonSimulatorScreen(
+          chibiProfile = ChibiProfile(),
+          onOpenPlanetDetail = {},
+          onOpenLandingSimulator = {},
+          onExitSimulator = { exited = true },
+        )
+      }
+    }
+
+    repeat(5) { composeTestRule.mainClock.advanceTimeByFrame() }
+    composeTestRule.onNodeWithTag("first_person_flight_sim").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("cockpit_exit_button").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("cockpit_flight_stick").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("cockpit_throttle_slider").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("cockpit_warp_chip").performClick()
+    repeat(5) { composeTestRule.mainClock.advanceTimeByFrame() }
+    composeTestRule.onNodeWithTag("cockpit_stop_button").performClick()
+    repeat(5) { composeTestRule.mainClock.advanceTimeByFrame() }
+    composeTestRule.onNodeWithTag("cockpit_speed_readout").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("cockpit_exit_button").performClick()
+    assertTrue(exited)
   }
 }

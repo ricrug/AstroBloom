@@ -11,12 +11,15 @@ fun FreeExploreScreen(
   chibiProfile: ChibiProfile,
   onOpenPlanetDetail: (String) -> Unit,
   onOpenLandingSimulator: (String) -> Unit,
+  onOpenFirstPersonCockpit: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   FreeSpaceExplorer3D(
     chibiProfile = chibiProfile,
     onOpenPlanetDetail = onOpenPlanetDetail,
     onOpenLandingSimulator = onOpenLandingSimulator,
+    onOpenFirstPersonCockpit = onOpenFirstPersonCockpit,
     modifier = modifier.fillMaxSize(),
   )
 }
+

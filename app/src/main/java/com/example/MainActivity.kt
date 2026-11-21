@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -37,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,12 +60,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.ui.components.ChibiCustomizerSheet
 import com.example.ui.screens.CuriositiesScreen
+import com.example.ui.screens.FirstPersonSimulatorScreen
 import com.example.ui.screens.FreeExploreScreen
 import com.example.ui.screens.LabsScreen
 import com.example.ui.screens.LandingSimulatorScreen
 import com.example.ui.screens.PlanetDetailScreen
 import com.example.ui.screens.PlanetsHomeScreen
 import com.example.ui.screens.QuizScreen
+import com.example.ui.screens.SplashScreen
 import com.example.ui.theme.AstroViaggioTheme
 import com.example.ui.theme.ComicInk
 import com.example.ui.theme.CosmicAmber
@@ -89,6 +94,7 @@ private sealed class AstroTab(
 
 private const val ROUTE_PLANET_DETAIL = "planet_detail/{planetId}"
 private const val ROUTE_LANDING_SIM = "landing_sim/{planetId}"
+private const val ROUTE_FIRST_PERSON_SIM = "first_person_sim"
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,7 +102,18 @@ class MainActivity : ComponentActivity() {
     enableEdgeToEdge()
     setContent {
       AstroViaggioTheme {
-        AstroViaggioApp()
+        var showSplash by rememberSaveable { mutableStateOf(true) }
+        Crossfade(
+          targetState = showSplash,
+          animationSpec = tween(durationMillis = 450),
+          label = "splashTransition",
+        ) { splashVisible ->
+          if (splashVisible) {
+            SplashScreen(onSplashFinished = { showSplash = false })
+          } else {
+            AstroViaggioApp()
+          }
+        }
       }
     }
   }
@@ -135,9 +152,12 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     val useNavRail = maxWidth >= 600.dp
 
+    val isFullScreenCockpit = currentRoute == ROUTE_FIRST_PERSON_SIM
+
     Scaffold(
       containerColor = SpaceVoid,
-      contentWindowInsets = WindowInsets.safeDrawing,
+      contentWindowInsets =
+        if (isFullScreenCockpit) WindowInsets(0, 0, 0, 0) else WindowInsets.safeDrawing,
       bottomBar = {
         if (isTopLevelRoute && !useNavRail) {
           NavigationBar(containerColor = SpaceNavy) {
@@ -238,6 +258,9 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 onOpenLandingSimulator = { planetId ->
                   navController.navigate("landing_sim/$planetId")
                 },
+                onOpenFirstPersonCockpit = {
+                  navController.navigate(ROUTE_FIRST_PERSON_SIM)
+                },
               )
             }
 
@@ -320,6 +343,19 @@ fun AstroViaggioApp(viewModel: AstroViewModel = viewModel()) {
                 chibiProfile = chibiProfile,
                 onMarkExplored = viewModel::markPlanetExplored,
                 onBack = { navController.popBackStack() },
+              )
+            }
+
+            composable(route = ROUTE_FIRST_PERSON_SIM) {
+              FirstPersonSimulatorScreen(
+                chibiProfile = chibiProfile,
+                onOpenPlanetDetail = { planetId ->
+                  navController.navigate("planet_detail/$planetId")
+                },
+                onOpenLandingSimulator = { planetId ->
+                  navController.navigate("landing_sim/$planetId")
+                },
+                onExitSimulator = { navController.popBackStack() },
               )
             }
           }

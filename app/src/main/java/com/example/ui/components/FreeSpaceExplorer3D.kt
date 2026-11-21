@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.Flight
 import androidx.compose.material.icons.rounded.FlightLand
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -59,6 +60,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -72,6 +74,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.OrbitVec3
+import com.example.data.OrbitalMechanics
 import com.example.data.SolarSystemData
 import com.example.model.CelestialBody
 import com.example.model.ChibiExpression
@@ -88,31 +92,24 @@ import com.example.ui.theme.SpaceNavy
 import com.example.ui.theme.SpaceVoid
 import com.example.ui.theme.StarlightMuted
 import com.example.ui.theme.StarlightWhite
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
-import kotlin.math.sqrt
-
-private data class Vec3D(val x: Float, val y: Float, val z: Float) {
-  operator fun plus(o: Vec3D) = Vec3D(x + o.x, y + o.y, z + o.z)
-  operator fun minus(o: Vec3D) = Vec3D(x - o.x, y - o.y, z - o.z)
-  operator fun times(s: Float) = Vec3D(x * s, y * s, z * s)
-  fun length(): Float = sqrt(x * x + y * y + z * z)
-}
 
 private data class ProjectedBody(
   val body: CelestialBody,
-  val worldPos: Vec3D,
+  val worldPos: OrbitVec3,
   val screenPos: Offset,
   val screenRadius: Float,
   val depth: Float,
 )
 
 private fun projectPoint(
-  worldPos: Vec3D,
-  camFocus: Vec3D,
+  worldPos: OrbitVec3,
+  camFocus: OrbitVec3,
   camYawDeg: Float,
   camPitchDeg: Float,
   camDistance: Float,
@@ -147,19 +144,20 @@ fun FreeSpaceExplorer3D(
   chibiProfile: ChibiProfile,
   onOpenPlanetDetail: (String) -> Unit,
   onOpenLandingSimulator: (String) -> Unit,
+  onOpenFirstPersonCockpit: (() -> Unit)? = null,
   modifier: Modifier = Modifier,
 ) {
   val bodies = SolarSystemData.celestialBodies
   val textMeasurer = rememberTextMeasurer()
 
-  // 3D Camera & Navigation State
-  var camYaw by remember { mutableFloatStateOf(-18f) }
-  var camPitch by remember { mutableFloatStateOf(26f) }
-  var camDistance by remember { mutableFloatStateOf(580f) }
+  // 3D Camera & Navigation State (low-ish initial pitch makes tilted ecliptic orbits pop immediately!)
+  var camYaw by remember { mutableFloatStateOf(-22f) }
+  var camPitch by remember { mutableFloatStateOf(18f) }
+  var camDistance by remember { mutableFloatStateOf(590f) }
 
   // Free flight spaceship position & velocity
-  var focusPos by remember { mutableStateOf(Vec3D(0f, 0f, 0f)) }
-  var shipVelocity by remember { mutableStateOf(Vec3D(0f, 0f, 0f)) }
+  var focusPos by remember { mutableStateOf(OrbitVec3(0f, 0f, 0f)) }
+  var shipVelocity by remember { mutableStateOf(OrbitVec3(0f, 0f, 0f)) }
   var rocketHeadingDeg by remember { mutableFloatStateOf(0f) }
   var lockedPlanetId by remember { mutableStateOf<String?>(null) }
   var nearPlanet by remember { mutableStateOf<CelestialBody?>(bodies.first()) }
@@ -199,7 +197,7 @@ fun FreeSpaceExplorer3D(
       val theta = (i * 137.5f) * PI / 180.0
       val phi = ((i * 53) % 180 - 90) * PI / 180.0
       val dist = 1200f + (i % 5) * 180f
-      Vec3D(
+      OrbitVec3(
         x = (dist * cos(phi) * cos(theta)).toFloat(),
         y = (dist * sin(phi)).toFloat(),
         z = (dist * cos(phi) * sin(theta)).toFloat(),
@@ -207,28 +205,7 @@ fun FreeSpaceExplorer3D(
     }
   }
 
-  fun planetWorldPos(body: CelestialBody, tSec: Float): Vec3D {
-    if (body.id == "moon") {
-      val earth = SolarSystemData.getPlanetById("earth")
-      val earthPos = planetWorldPos(earth, tSec)
-      val moonAngle = Math.toRadians((40f + tSec * body.orbitSpeedDegPerSec).toDouble())
-      return earthPos + Vec3D(
-        x = (cos(moonAngle) * body.orbitDistanceScene).toFloat(),
-        y = (sin(moonAngle) * 3.5f).toFloat(),
-        z = (sin(moonAngle) * body.orbitDistanceScene).toFloat(),
-      )
-    }
-    if (body.orbitDistanceScene <= 0f) return Vec3D(0f, 0f, 0f)
-    val base = initialAngles.getOrElse(body.orderIndex) { 0f }
-    val angleRad = Math.toRadians((base + tSec * body.orbitSpeedDegPerSec).toDouble())
-    val orbitTilt = (body.orderIndex % 4 - 1.5f) * 0.04f
-    val x = (cos(angleRad) * body.orbitDistanceScene).toFloat()
-    val z = (sin(angleRad) * body.orbitDistanceScene).toFloat()
-    val y = x * orbitTilt
-    return Vec3D(x, y, z)
-  }
-
-  // Frame loop: orbits, smooth free-flight physics aligned with camera axes, and autopilot follow
+  // Frame loop: Keplerian ecliptic orbits, smooth free-flight physics, and autopilot follow
   LaunchedEffect(Unit) {
     var lastNanos = 0L
     while (true) {
@@ -242,18 +219,15 @@ fun FreeSpaceExplorer3D(
 
           if (hasPilotInput) {
             lockedPlanetId = null
-            // Exact inverse of projectPoint yaw rotation:
-            // Screen right (+x1) => world (cos(yaw), 0, -sin(yaw))
-            // Screen into-screen (+z1) => world (sin(yaw), 0, cos(yaw))
             val yawRad = Math.toRadians(camYaw.toDouble())
-            val screenRight = Vec3D(cos(yawRad).toFloat(), 0f, -sin(yawRad).toFloat())
-            val screenForward = Vec3D(sin(yawRad).toFloat(), 0f, cos(yawRad).toFloat())
+            val screenRight = OrbitVec3(cos(yawRad).toFloat(), 0f, -sin(yawRad).toFloat())
+            val screenForward = OrbitVec3(sin(yawRad).toFloat(), 0f, cos(yawRad).toFloat())
 
             val maxSpeed = (camDistance * 0.52f).coerceIn(130f, 340f)
             val desiredVel =
               screenRight * (joyX * maxSpeed) +
                 screenForward * (-joyY * maxSpeed) +
-                Vec3D(0f, verticalThrust * maxSpeed * 0.65f, 0f)
+                OrbitVec3(0f, verticalThrust * maxSpeed * 0.65f, 0f)
 
             val accel = (dt * 7.5f).coerceAtMost(1f)
             shipVelocity = shipVelocity + (desiredVel - shipVelocity) * accel
@@ -264,24 +238,23 @@ fun FreeSpaceExplorer3D(
             }
           } else if (lockedPlanetId != null) {
             val targetBody = SolarSystemData.getPlanetById(lockedPlanetId!!)
-            val targetPos = planetWorldPos(targetBody, simTimeSec)
+            val targetPos = OrbitalMechanics.bodyWorldPosition(targetBody, simTimeSec)
             val diff = targetPos - focusPos
             focusPos = focusPos + diff * (dt * 5.5f).coerceAtMost(1f)
-            shipVelocity = Vec3D(0f, 0f, 0f)
+            shipVelocity = OrbitVec3(0f, 0f, 0f)
           } else {
-            // Gentle inertial glide when joystick released
             if (shipVelocity.length() > 1f) {
               focusPos = focusPos + shipVelocity * dt
               shipVelocity = shipVelocity * 0.90f
             } else {
-              shipVelocity = Vec3D(0f, 0f, 0f)
+              shipVelocity = OrbitVec3(0f, 0f, 0f)
             }
           }
 
           var bestBody = bodies.first()
           var bestDist = Float.MAX_VALUE
           for (b in bodies) {
-            val d = (planetWorldPos(b, simTimeSec) - focusPos).length()
+            val d = (OrbitalMechanics.bodyWorldPosition(b, simTimeSec) - focusPos).length()
             if (d < bestDist) {
               bestDist = d
               bestBody = b
@@ -349,46 +322,35 @@ fun FreeSpaceExplorer3D(
         }
       }
 
-      // 3D Orbital Paths (planets around Sun + Moon around Earth!)
+      // Ecliptic Reference Plane (y = 0) & Inclined Elliptical 3D Orbits
       if (showOrbits) {
-        val earthPos = planetWorldPos(SolarSystemData.getPlanetById("earth"), simTimeSec)
+        drawEclipticReferencePlane(
+          camFocus = focusPos,
+          camYaw = camYaw,
+          camPitch = camPitch,
+          camDistance = camDistance,
+          screenCenter = screenCenter,
+          focalLength = focalLength,
+        )
         bodies.drop(1).forEach { body ->
-          if (body.id == "moon") {
-            draw3DOrbitRing(
-              orbitCenter = earthPos,
-              orbitRadius = body.orbitDistanceScene,
-              orbitTilt = 0.14f,
-              color = body.primaryColor,
-              camFocus = focusPos,
-              camYaw = camYaw,
-              camPitch = camPitch,
-              camDistance = camDistance,
-              screenCenter = screenCenter,
-              focalLength = focalLength,
-              highlighted = lockedPlanetId == body.id || nearPlanet?.id == body.id,
-            )
-          } else {
-            draw3DOrbitRing(
-              orbitCenter = Vec3D(0f, 0f, 0f),
-              orbitRadius = body.orbitDistanceScene,
-              orbitTilt = (body.orderIndex % 4 - 1.5f) * 0.04f,
-              color = body.primaryColor,
-              camFocus = focusPos,
-              camYaw = camYaw,
-              camPitch = camPitch,
-              camDistance = camDistance,
-              screenCenter = screenCenter,
-              focalLength = focalLength,
-              highlighted = lockedPlanetId == body.id || nearPlanet?.id == body.id,
-            )
-          }
+          draw3DKeplerOrbit(
+            body = body,
+            simTimeSec = simTimeSec,
+            camFocus = focusPos,
+            camYaw = camYaw,
+            camPitch = camPitch,
+            camDistance = camDistance,
+            screenCenter = screenCenter,
+            focalLength = focalLength,
+            highlighted = lockedPlanetId == body.id || nearPlanet?.id == body.id,
+          )
         }
       }
 
       // 3D Asteroid Belt
       asteroids.forEach { (r, angleOffset, yAndSpeed) ->
         val angleRad = Math.toRadians((angleOffset + simTimeSec * yAndSpeed.second).toDouble())
-        val pos = Vec3D((cos(angleRad) * r).toFloat(), yAndSpeed.first, (sin(angleRad) * r).toFloat())
+        val pos = OrbitVec3((cos(angleRad) * r).toFloat(), yAndSpeed.first, (sin(angleRad) * r).toFloat())
         val proj = projectPoint(pos, focusPos, camYaw, camPitch, camDistance, screenCenter, focalLength)
         if (proj != null) {
           drawCircle(
@@ -402,7 +364,7 @@ fun FreeSpaceExplorer3D(
       // Project & Z-sort celestial bodies back-to-front
       val projected =
         bodies.mapNotNull { body ->
-          val wPos = planetWorldPos(body, simTimeSec)
+          val wPos = OrbitalMechanics.bodyWorldPosition(body, simTimeSec)
           val p = projectPoint(wPos, focusPos, camYaw, camPitch, camDistance, screenCenter, focalLength)
           if (p != null) {
             ProjectedBody(
@@ -554,11 +516,11 @@ fun FreeSpaceExplorer3D(
         Surface(
           onClick = {
             lockedPlanetId = null
-            focusPos = Vec3D(0f, 0f, 0f)
-            shipVelocity = Vec3D(0f, 0f, 0f)
-            camYaw = -18f
-            camPitch = 26f
-            camDistance = 580f
+            focusPos = OrbitVec3(0f, 0f, 0f)
+            shipVelocity = OrbitVec3(0f, 0f, 0f)
+            camYaw = -22f
+            camPitch = 18f
+            camDistance = 590f
           },
           color = SpaceCard.copy(alpha = 0.88f),
           shape = RoundedCornerShape(12.dp),
@@ -606,6 +568,21 @@ fun FreeSpaceExplorer3D(
           }
         }
       }
+
+      if (onOpenFirstPersonCockpit != null) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Button(
+          onClick = onOpenFirstPersonCockpit,
+          colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = ComicInk),
+          shape = RoundedCornerShape(14.dp),
+          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+          modifier = Modifier.padding(horizontal = 12.dp).height(38.dp).testTag("launch_cockpit_simulator_button"),
+        ) {
+          Icon(Icons.Rounded.Flight, contentDescription = null, modifier = Modifier.size(17.dp))
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("Decolla in Cabina 1ª Persona (Landscape)", style = MaterialTheme.typography.labelLarge)
+        }
+      }
     }
 
     // BOTTOM HUD: Nearest Planet Chibi Card + Virtual Joystick & Quota Buttons
@@ -650,8 +627,13 @@ fun FreeSpaceExplorer3D(
                 color = ComicInk,
                 maxLines = 1,
               )
+              val orbitEl = OrbitalMechanics.elementsFor(activeBody.id)
+              val incStr = String.format(Locale.ITALIAN, "%.1f°", orbitEl.inclinationDeg)
+              val hookOrOrbit =
+                if (activeBody.id == "sun") activeBody.quickHook
+                else "Inclinazione eclittica: $incStr • ${activeBody.quickHook}"
               Text(
-                text = activeBody.quickHook,
+                text = hookOrOrbit,
                 style = MaterialTheme.typography.bodySmall,
                 color = ComicInk.copy(alpha = 0.85f),
                 maxLines = 2,
@@ -815,12 +797,40 @@ private fun VirtualFlightJoystick(
   }
 }
 
-private fun DrawScope.draw3DOrbitRing(
-  orbitCenter: Vec3D,
-  orbitRadius: Float,
-  orbitTilt: Float,
-  color: Color,
-  camFocus: Vec3D,
+private fun DrawScope.drawEclipticReferencePlane(
+  camFocus: OrbitVec3,
+  camYaw: Float,
+  camPitch: Float,
+  camDistance: Float,
+  screenCenter: Offset,
+  focalLength: Float,
+) {
+  // Dashed crosshair axes on y = 0 ecliptic plane + outer ecliptic rim
+  val extent = 540f
+  val axes =
+    listOf(
+      OrbitVec3(-extent, 0f, 0f) to OrbitVec3(extent, 0f, 0f),
+      OrbitVec3(0f, 0f, -extent) to OrbitVec3(0f, 0f, extent),
+    )
+  axes.forEach { (a, b) ->
+    val p1 = projectPoint(a, camFocus, camYaw, camPitch, camDistance, screenCenter, focalLength)
+    val p2 = projectPoint(b, camFocus, camYaw, camPitch, camDistance, screenCenter, focalLength)
+    if (p1 != null && p2 != null) {
+      drawLine(
+        color = CosmicCyan.copy(alpha = 0.14f),
+        start = p1.first,
+        end = p2.first,
+        strokeWidth = 1.2f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
+      )
+    }
+  }
+}
+
+private fun DrawScope.draw3DKeplerOrbit(
+  body: CelestialBody,
+  simTimeSec: Float,
+  camFocus: OrbitVec3,
   camYaw: Float,
   camPitch: Float,
   camDistance: Float,
@@ -828,14 +838,11 @@ private fun DrawScope.draw3DOrbitRing(
   focalLength: Float,
   highlighted: Boolean,
 ) {
-  val segments = 56
+  val points = OrbitalMechanics.sampleOrbitLoop(body, simTimeSec, segments = 64)
+  if (points.isEmpty()) return
   val path = Path()
   var started = false
-  for (i in 0..segments) {
-    val rad = 2.0 * PI * i / segments
-    val x = (cos(rad) * orbitRadius).toFloat()
-    val z = (sin(rad) * orbitRadius).toFloat()
-    val pos = orbitCenter + Vec3D(x, x * orbitTilt, z)
+  points.forEach { pos ->
     val proj = projectPoint(pos, camFocus, camYaw, camPitch, camDistance, screenCenter, focalLength)
     if (proj != null) {
       if (!started) {
@@ -850,8 +857,8 @@ private fun DrawScope.draw3DOrbitRing(
   }
   drawPath(
     path = path,
-    color = if (highlighted) color.copy(alpha = 0.82f) else Color.White.copy(alpha = 0.16f),
-    style = Stroke(width = if (highlighted) 3.2f else 1.4f),
+    color = if (highlighted) body.primaryColor.copy(alpha = 0.88f) else body.primaryColor.copy(alpha = 0.34f),
+    style = Stroke(width = if (highlighted) 3.4f else 1.5f),
   )
 }
 
