@@ -93,14 +93,22 @@ object OrbitalMechanics {
     body: CelestialBody,
     simTimeSec: Float,
     inclinationVisualBoost: Float = 1.45f,
+    useRealisticSpeed: Boolean = false,
+    timeScaleMultiplier: Float = 1.0f,
   ): OrbitVec3 {
     if (body.id == "sun" || body.orbitDistanceScene <= 0f) return OrbitVec3(0f, 0f, 0f)
     val el = elementsFor(body.id)
-    val anomalyDeg = el.initialMeanAnomalyDeg + simTimeSec * body.orbitSpeedDegPerSec
+    val speed = if (useRealisticSpeed) {
+      val yr = body.yearLengthEarthYears.coerceAtLeast(0.01f)
+      (360f / (yr * 365.25f * 86400f)) * timeScaleMultiplier
+    } else {
+      body.orbitSpeedDegPerSec
+    }
+    val anomalyDeg = el.initialMeanAnomalyDeg + simTimeSec * speed
     val localOffset = orbitPointAtAngle(body, anomalyDeg, inclinationVisualBoost)
     if (body.id == "moon") {
       val earth = SolarSystemData.getPlanetById("earth")
-      return bodyWorldPosition(earth, simTimeSec, inclinationVisualBoost) + localOffset
+      return bodyWorldPosition(earth, simTimeSec, inclinationVisualBoost, useRealisticSpeed, timeScaleMultiplier) + localOffset
     }
     return localOffset
   }
@@ -110,11 +118,13 @@ object OrbitalMechanics {
     simTimeSec: Float,
     segments: Int = 64,
     inclinationVisualBoost: Float = 1.45f,
+    useRealisticSpeed: Boolean = false,
+    timeScaleMultiplier: Float = 1.0f,
   ): List<OrbitVec3> {
     if (body.orbitDistanceScene <= 0f) return emptyList()
     val center =
       if (body.id == "moon") {
-        bodyWorldPosition(SolarSystemData.getPlanetById("earth"), simTimeSec, inclinationVisualBoost)
+        bodyWorldPosition(SolarSystemData.getPlanetById("earth"), simTimeSec, inclinationVisualBoost, useRealisticSpeed, timeScaleMultiplier)
       } else {
         OrbitVec3(0f, 0f, 0f)
       }

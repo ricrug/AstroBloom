@@ -56,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -285,7 +286,9 @@ fun FirstPersonFlightSimulator3D(
   // Autopilot & simulation state
   var autopilotTargetId by remember { mutableStateOf<String?>(null) }
   var isAutopilotSteering by remember { mutableStateOf(false) }
-  var orbitsPaused by remember { mutableStateOf(false) }
+  // Scala temporale orbite: 0 = 1x Reale Astronomico (default), 1 = 100x Time-Lapse, 2 = Orbite Ferme
+  var timeWarpMode by remember { mutableIntStateOf(0) }
+  var invertPitch by remember { mutableStateOf(false) }
   var simTimeSec by remember { mutableFloatStateOf(14f) }
   var nearestBody by remember { mutableStateOf<CelestialBody>(bodies.first()) }
   var nearestDist by remember { mutableFloatStateOf(100f) }
@@ -335,17 +338,24 @@ fun FirstPersonFlightSimulator3D(
       withFrameNanos { nanos ->
         if (lastNanos != 0L) {
           val dt = ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
-          if (!orbitsPaused) {
+          val timeScaleMultiplier = when (timeWarpMode) {
+            0 -> 1.0f // 1x Velocita astronomica reale
+            1 -> 100.0f // 100x Time-Lapse
+            else -> 0.0f // Orbite ferme
+          }
+          if (timeWarpMode != 2) {
             simTimeSec += dt
           }
 
           if (hasStick) {
             isAutopilotSteering = false
-            // Target angular velocities: stickX turns yaw (heading), stickY controls pitch (nose up/down)
-            val targetYawVel = -stickX * 1.55f
-            val targetPitchVel = -stickY * 1.25f
-            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 9.5f).coerceAtMost(1f)
-            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 9.5f).coerceAtMost(1f)
+            // Yaw (virata): stickX > 0 (destra) -> vira a destra
+            val targetYawVel = -stickX * 1.65f
+            // Pitch (beccheggio): Arcade (spingi su = muso in alto) vs Aero (spingi su = picchiata)
+            val pitchFactor = if (invertPitch) 1.35f else -1.35f
+            val targetPitchVel = stickY * pitchFactor
+            smoothYawVel += (targetYawVel - smoothYawVel) * (dt * 10.0f).coerceAtMost(1f)
+            smoothPitchVel += (targetPitchVel - smoothPitchVel) * (dt * 10.0f).coerceAtMost(1f)
 
             shipHeading += smoothYawVel * dt
             shipPitch = (shipPitch + smoothPitchVel * dt).coerceIn(-1.42f, 1.42f)
@@ -366,7 +376,7 @@ fun FirstPersonFlightSimulator3D(
 
           if (isAutopilotSteering && autopilotTargetId != null) {
             val targetBody = SolarSystemData.getPlanetById(autopilotTargetId!!)
-            val targetPos = OrbitalMechanics.bodyWorldPosition(targetBody, simTimeSec)
+            val targetPos = OrbitalMechanics.bodyWorldPosition(targetBody, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = timeScaleMultiplier)
             val toTarget = targetPos - shipPos
             val desiredDir = toTarget.normalized()
 
@@ -430,7 +440,7 @@ fun FirstPersonFlightSimulator3D(
           var bestBody = bodies.first()
           var bestDist = Float.MAX_VALUE
           bodies.forEach { b ->
-            val d = (OrbitalMechanics.bodyWorldPosition(b, simTimeSec) - shipPos).length()
+            val d = (OrbitalMechanics.bodyWorldPosition(b, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = timeScaleMultiplier) - shipPos).length()
             if (d < bestDist) {
               bestDist = d
               bestBody = b
@@ -484,11 +494,26 @@ fun FirstPersonFlightSimulator3D(
 
       val center = Offset(size.width * 0.5f, size.height * 0.44f)
       val focal = size.minDimension * 1.15f
-      val shipRight = shipForward.cross(shipUp).normalized()
+      // Terna ortonormale destra corretta: Up x Forward = Right
+      val shipRight = shipUp.cross(shipForward).normalized()
 
       fun toCameraSpace(worldPt: OrbitVec3): OrbitVec3 {
         val rel = worldPt - shipPos
         return OrbitVec3(rel.dot(shipRight), rel.dot(shipUp), rel.dot(shipForward))
+      }
+
+      val currentMultiplier = when (timeWarpMode) {
+        0 -> 1.0f
+        1 -> 100.0f
+        else -> 0.0f
+      }
+
+      // Posizione proiettata del Sole per lo shading fotorealistico dei pianeti
+      val sunCam = toCameraSpace(OrbitVec3(0f, 0f, 0f))
+      val sunScreen = if (sunCam.z > 0.5f) {
+        Offset(center.x + (sunCam.x / sunCam.z) * focal, center.y - (sunCam.y / sunCam.z) * focal)
+      } else {
+        null
       }
 
       // 3D Starfield + Speed Warp Streaks
@@ -545,7 +570,7 @@ fun FirstPersonFlightSimulator3D(
 
       // Keplerian Planetary Orbits
       bodies.filter { it.orbitDistanceScene > 0f }.forEach { b ->
-        val pts = OrbitalMechanics.sampleOrbitLoop(b, simTimeSec, segments = 48)
+        val pts = OrbitalMechanics.sampleOrbitLoop(b, simTimeSec, segments = 48, useRealisticSpeed = true, timeScaleMultiplier = currentMultiplier)
         var prevPt: Offset? = null
         pts.forEach { worldPt ->
           val cam = toCameraSpace(worldPt)
@@ -587,7 +612,7 @@ fun FirstPersonFlightSimulator3D(
       // Project Celestial Bodies & Sort back-to-front
       val projected = mutableListOf<CockpitProjectedBody>()
       bodies.forEach { b ->
-        val wp = OrbitalMechanics.bodyWorldPosition(b, simTimeSec)
+        val wp = OrbitalMechanics.bodyWorldPosition(b, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = currentMultiplier)
         val cam = toCameraSpace(wp)
         if (cam.z > 2.5f) {
           val sx = center.x + (cam.x / cam.z) * focal
@@ -608,13 +633,14 @@ fun FirstPersonFlightSimulator3D(
           isLocked = p.body.id == autopilotTargetId,
           textMeasurer = textMeasurer,
           showLabel = p.depth < 620f || p.body.id == autopilotTargetId || p.body.id == "sun",
+          sunScreenPos = sunScreen,
         )
       }
 
       // Off-screen Waypoint Indicator
       autopilotTargetId?.let { targetId ->
         val tBody = SolarSystemData.getPlanetById(targetId)
-        val cam = toCameraSpace(OrbitalMechanics.bodyWorldPosition(tBody, simTimeSec))
+        val cam = toCameraSpace(OrbitalMechanics.bodyWorldPosition(tBody, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = currentMultiplier))
         val onScreen =
           if (cam.z > 2.5f) {
             val sx = center.x + (cam.x / cam.z) * focal
@@ -985,15 +1011,16 @@ fun FirstPersonFlightSimulator3D(
         strokeWidth = 2.2f,
       )
       bodies.forEach { b ->
-        val wp = OrbitalMechanics.bodyWorldPosition(b, simTimeSec)
-        val dx = (wp.x - shipPos.x) * radarScale
-        val dz = (wp.z - shipPos.z) * radarScale
-        val clampedDist = hypot(dx, dz)
+        val wp = OrbitalMechanics.bodyWorldPosition(b, simTimeSec, useRealisticSpeed = true, timeScaleMultiplier = currentMultiplier)
+        val rel = wp - shipPos
+        val relX = rel.dot(shipRight) * radarScale
+        val relZ = rel.dot(shipForward) * radarScale
+        val clampedDist = hypot(relX, relZ)
         val factor = if (clampedDist > radarR - 4f) (radarR - 4f) / clampedDist else 1f
         drawCircle(
           color = if (b.id == autopilotTargetId) AuroraGreen else b.primaryColor,
           radius = if (b.id == "sun") 3.8f else 2.4f,
-          center = Offset(radarCenter.x + dx * factor, radarCenter.y + dz * factor),
+          center = Offset(radarCenter.x + relX * factor, radarCenter.y - relZ * factor),
         )
       }
       drawCircle(color = StarlightWhite, radius = 2.8f, center = radarCenter)
@@ -1130,20 +1157,50 @@ fun FirstPersonFlightSimulator3D(
       }
 
       Surface(
-        onClick = { orbitsPaused = !orbitsPaused },
+        onClick = { timeWarpMode = (timeWarpMode + 1) % 3 },
         color = SpaceCard.copy(alpha = 0.90f),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, when (timeWarpMode) { 0 -> AuroraGreen; 1 -> CosmicAmber; else -> StarlightMuted }.copy(alpha = 0.6f)),
+        modifier = Modifier.testTag("cockpit_orbits_mode"),
       ) {
         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
           Icon(
-            imageVector = if (orbitsPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-            contentDescription = "Pausa orbite",
-            tint = StarlightWhite,
+            imageVector = if (timeWarpMode == 2) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+            contentDescription = "Velocita orbite",
+            tint = when (timeWarpMode) { 0 -> AuroraGreen; 1 -> CosmicAmber; else -> StarlightMuted },
             modifier = Modifier.size(16.dp),
           )
           Spacer(modifier = Modifier.width(4.dp))
-          Text(if (orbitsPaused) "Orbite Ferme" else "Orbite Vive", style = MaterialTheme.typography.labelSmall, color = StarlightWhite)
+          Text(
+            text = when (timeWarpMode) { 0 -> "Orbite: 1x Reale"; 1 -> "Orbite: 100x"; else -> "Orbite: Ferme" },
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = StarlightWhite,
+          )
+        }
+      }
+
+      Surface(
+        onClick = { invertPitch = !invertPitch },
+        color = SpaceCard.copy(alpha = 0.90f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, CosmicCyan.copy(alpha = 0.5f)),
+        modifier = Modifier.testTag("cockpit_pitch_mode"),
+      ) {
+        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+          Icon(
+            imageVector = Icons.Rounded.Explore,
+            contentDescription = "Modalita Beccheggio",
+            tint = CosmicCyan,
+            modifier = Modifier.size(16.dp),
+          )
+          Spacer(modifier = Modifier.width(4.dp))
+          Text(
+            text = if (invertPitch) "Pitch: Aero" else "Pitch: Arcade",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = StarlightWhite,
+          )
         }
       }
       Surface(
@@ -1203,23 +1260,26 @@ fun FirstPersonFlightSimulator3D(
                 .background(Color(0xD90A1128), CircleShape)
                 .border(2.dp, Brush.radialGradient(listOf(CosmicCyan, Color(0xFF14203D))), CircleShape)
                 .pointerInput(Unit) {
+                  val centerPx = 46.dp.toPx()
+                  val deadzone = 4.dp.toPx()
+                  fun updateJoy(pos: Offset) {
+                    isAutopilotSteering = false
+                    val dx = pos.x - centerPx
+                    val dy = pos.y - centerPx
+                    val dist = hypot(dx, dy)
+                    if (dist > deadzone) {
+                      val norm = ((dist - deadzone) / (joyLeftMaxPx - deadzone)).coerceIn(0f, 1f)
+                      val curved = norm * (0.35f + 0.65f * norm)
+                      val ang = atan2(dy, dx)
+                      stickX = (cos(ang) * curved).coerceIn(-1f, 1f)
+                      stickY = (sin(ang) * curved).coerceIn(-1f, 1f)
+                    } else {
+                      stickX = 0f
+                      stickY = 0f
+                    }
+                  }
                   detectDragGestures(
-                    onDragStart = { offset ->
-                      isAutopilotSteering = false
-                      val centerPx = 46.dp.toPx()
-                      val dx = offset.x - centerPx
-                      val dy = offset.y - centerPx
-                      val dist = hypot(dx, dy)
-                      val deadzone = 4.dp.toPx()
-                      if (dist > deadzone) {
-                        val scale = if (dist > joyLeftMaxPx) joyLeftMaxPx / dist else 1f
-                        stickX = (dx * scale / joyLeftMaxPx).coerceIn(-1f, 1f)
-                        stickY = (dy * scale / joyLeftMaxPx).coerceIn(-1f, 1f)
-                      } else {
-                        stickX = 0f
-                        stickY = 0f
-                      }
-                    },
+                    onDragStart = { offset -> updateJoy(offset) },
                     onDragEnd = {
                       stickX = 0f
                       stickY = 0f
@@ -1228,21 +1288,9 @@ fun FirstPersonFlightSimulator3D(
                       stickX = 0f
                       stickY = 0f
                     },
-                  ) { change, dragAmount ->
+                  ) { change, _ ->
                     change.consume()
-                    isAutopilotSteering = false
-                    val rawX = stickX * joyLeftMaxPx + dragAmount.x
-                    val rawY = stickY * joyLeftMaxPx + dragAmount.y
-                    val dist = hypot(rawX, rawY)
-                    val deadzone = 3.dp.toPx()
-                    if (dist > deadzone) {
-                      val scale = if (dist > joyLeftMaxPx) joyLeftMaxPx / dist else 1f
-                      stickX = (rawX * scale / joyLeftMaxPx).coerceIn(-1f, 1f)
-                      stickY = (rawY * scale / joyLeftMaxPx).coerceIn(-1f, 1f)
-                    } else {
-                      stickX = 0f
-                      stickY = 0f
-                    }
+                    updateJoy(change.position)
                   }
                 }
                 .testTag("cockpit_flight_stick"),
@@ -1744,6 +1792,7 @@ private fun DrawScope.drawCockpitPlanet(
   isLocked: Boolean,
   textMeasurer: TextMeasurer,
   showLabel: Boolean,
+  sunScreenPos: Offset? = null,
 ) {
   if (body.id == "sun") {
     drawCircle(
@@ -1764,16 +1813,60 @@ private fun DrawScope.drawCockpitPlanet(
       )
     }
 
+    // Direzione reale della luce solare calcolata rispetto al Sole
+    val lightDir = if (sunScreenPos != null) {
+      val diff = sunScreenPos - screenPos
+      val l = hypot(diff.x, diff.y)
+      if (l > 1f) Offset(diff.x / l, diff.y / l) else Offset(-0.6f, -0.6f)
+    } else {
+      Offset(-0.55f, -0.55f)
+    }
+
+    val lightCenter = Offset(screenPos.x + lightDir.x * radius * 0.38f, screenPos.y + lightDir.y * radius * 0.38f)
+
+    // Base del pianeta con luce orientata verso il Sole
     drawCircle(
       brush =
         Brush.radialGradient(
-          colors = listOf(body.accentColor, body.primaryColor, Color(0xFF0A0D1A)),
-          center = Offset(screenPos.x - radius * 0.3f, screenPos.y - radius * 0.3f),
-          radius = (radius * 1.45f).coerceAtLeast(4f),
+          colors = listOf(body.accentColor, body.primaryColor, Color(0xFF070B16)),
+          center = lightCenter,
+          radius = (radius * 1.38f).coerceAtLeast(4f),
         ),
       radius = radius,
       center = screenPos,
     )
+
+    // Emisfero d'ombra e terminatore fotorealistico
+    val shadowCenter = Offset(screenPos.x - lightDir.x * radius * 0.50f, screenPos.y - lightDir.y * radius * 0.50f)
+    drawCircle(
+      brush = Brush.radialGradient(
+        colors = listOf(Color.Transparent, Color(0xCC03050B)),
+        center = shadowCenter,
+        radius = radius * 1.15f,
+      ),
+      radius = radius,
+      center = screenPos,
+    )
+
+    // Scattering atmosferico sul bordo rivolto verso il Sole (Terra, Venere, Giove, ecc.)
+    if (radius > 12f && (body.id in listOf("earth", "venus", "jupiter", "saturn", "uranus", "neptune"))) {
+      val atmoColor = when (body.id) {
+        "earth" -> CosmicCyan.copy(alpha = 0.60f)
+        "venus" -> CosmicAmber.copy(alpha = 0.50f)
+        "jupiter", "saturn" -> Color(0xFFFFD166).copy(alpha = 0.40f)
+        else -> CosmicCyan.copy(alpha = 0.50f)
+      }
+      drawCircle(
+        brush = Brush.radialGradient(
+          colors = listOf(atmoColor, Color.Transparent),
+          center = lightCenter,
+          radius = radius * 1.05f,
+        ),
+        radius = radius * 1.04f,
+        center = screenPos,
+        style = Stroke(width = (radius * 0.08f).coerceIn(1.5f, 4f)),
+      )
+    }
   }
 
   // Mirino Tattico di Puntamento Olografico Fantascientifico
