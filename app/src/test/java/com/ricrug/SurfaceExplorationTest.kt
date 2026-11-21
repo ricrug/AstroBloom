@@ -172,4 +172,17 @@ class SurfaceExplorationTest {
     val distToGridLine = kotlin.math.abs(snapZ - playerZ2)
     assertEquals(2.5f, distToGridLine, 0.001f)
   }
+
+  @Test
+  fun testButtonTypographyHyphenationAndLineBreak() {
+    val typo = com.ricrug.ui.theme.AppTypography
+    assertEquals(androidx.compose.ui.text.style.Hyphens.None, typo.labelLarge.hyphens)
+    assertEquals(androidx.compose.ui.text.style.LineBreak.Heading, typo.labelLarge.lineBreak)
+    assertEquals(androidx.compose.ui.text.style.Hyphens.None, typo.labelMedium.hyphens)
+    assertEquals(androidx.compose.ui.text.style.LineBreak.Heading, typo.labelMedium.lineBreak)
+    assertEquals(androidx.compose.ui.text.style.Hyphens.None, typo.labelSmall.hyphens)
+    assertEquals(androidx.compose.ui.text.style.LineBreak.Heading, typo.labelSmall.lineBreak)
+    assertEquals(androidx.compose.ui.text.style.Hyphens.None, typo.titleMedium.hyphens)
+    assertEquals(androidx.compose.ui.text.style.LineBreak.Heading, typo.titleMedium.lineBreak)
+  }
 }

@@ -489,7 +489,7 @@ fun OrbitsAndSeasonsLab(
           ) {
             Icon(if (raceRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, contentDescription = null)
             Spacer(modifier = Modifier.width(6.dp))
-            Text(if (raceRunning) "Pausa" else "Via alla corsa!")
+            Text(if (raceRunning) "Pausa" else "Via alla corsa!", maxLines = 1, softWrap = false)
           }
           OutlinedButton(
             onClick = {

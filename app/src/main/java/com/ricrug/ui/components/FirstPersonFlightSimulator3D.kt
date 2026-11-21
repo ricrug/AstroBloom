@@ -1536,6 +1536,8 @@ fun FirstPersonFlightSimulator3D(
                   text = if (isAutopilotSteering) "Sgancia" else "Punta",
                   style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
                   fontWeight = FontWeight.Bold,
+                  maxLines = 1,
+                  softWrap = false,
                 )
               }
             }
@@ -1549,7 +1551,7 @@ fun FirstPersonFlightSimulator3D(
               ) {
                 Icon(Icons.Rounded.FlightLand, contentDescription = null, modifier = Modifier.size(11.dp))
                 Spacer(modifier = Modifier.width(2.dp))
-                Text("Atterra", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold)
+                Text("Atterra", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
               }
             }
             Button(
@@ -1561,7 +1563,7 @@ fun FirstPersonFlightSimulator3D(
             ) {
               Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(11.dp))
               Spacer(modifier = Modifier.width(2.dp))
-              Text("3D", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold)
+              Text("3D", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
           }
         }

@@ -384,40 +384,77 @@ fun LandingSimulatorScreen(
             dialogue = msg,
             avatarSize = 78.dp,
             footerContent = {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-              ) {
-                if (outcome == LanderOutcome.LANDED_SUCCESS) {
+              if (outcome == LanderOutcome.LANDED_SUCCESS) {
+                Column(
+                  modifier = Modifier.fillMaxWidth(),
+                  verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                   Button(
                     onClick = { onStartSurfaceExploration(body.id) },
                     colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
-                    modifier = Modifier.weight(1.35f).testTag("landing_explore_button"),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("landing_explore_button"),
                   ) {
-                    Text("🥾 Sbarca ed Esplora", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                      text = "🥾 Sbarca ed Esplora",
+                      style = MaterialTheme.typography.titleMedium,
+                      fontWeight = FontWeight.Bold,
+                      maxLines = 1,
+                      softWrap = false,
+                    )
+                  }
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  ) {
+                    Button(
+                      onClick = { resetSeed++ },
+                      colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
+                      shape = RoundedCornerShape(12.dp),
+                      contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                      modifier = Modifier.weight(1f).testTag("landing_retry_button"),
+                    ) {
+                      Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                      Spacer(modifier = Modifier.width(4.dp))
+                      Text("Riprova", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                    }
+                    OutlinedButton(
+                      onClick = onBack,
+                      border = BorderStroke(1.5.dp, ComicInk),
+                      shape = RoundedCornerShape(12.dp),
+                      contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                      modifier = Modifier.weight(1f),
+                    ) {
+                      Text("Esci", color = ComicInk, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                    }
                   }
                 }
-                Button(
-                  onClick = { resetSeed++ },
-                  colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
-                  shape = RoundedCornerShape(12.dp),
-                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                  modifier = Modifier.weight(1f).testTag("landing_retry_button"),
+              } else {
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                  Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                  Spacer(modifier = Modifier.width(4.dp))
-                  Text("Riprova", style = MaterialTheme.typography.labelLarge)
-                }
-                OutlinedButton(
-                  onClick = onBack,
-                  border = BorderStroke(1.5.dp, ComicInk),
-                  shape = RoundedCornerShape(12.dp),
-                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                  modifier = Modifier.weight(1f),
-                ) {
-                  Text("Esci", color = ComicInk, style = MaterialTheme.typography.labelLarge)
+                  Button(
+                    onClick = { resetSeed++ },
+                    colors = ButtonDefaults.buttonColors(containerColor = CosmicAmber, contentColor = ComicInk),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f).testTag("landing_retry_button"),
+                  ) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Riprova", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                  }
+                  OutlinedButton(
+                    onClick = onBack,
+                    border = BorderStroke(1.5.dp, ComicInk),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f),
+                  ) {
+                    Text("Esci", color = ComicInk, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
+                  }
                 }
               }
             },
@@ -508,6 +545,8 @@ private fun HoldControlButton(
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = if (pressed) ComicInk else StarlightWhite,
+        maxLines = 1,
+        softWrap = false,
       )
     }
   }

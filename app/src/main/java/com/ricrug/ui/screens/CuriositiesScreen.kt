@@ -346,7 +346,7 @@ fun SpaceWeightAndAgeLab(
         ) {
           Icon(Icons.Rounded.Science, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(modifier = Modifier.width(6.dp))
-          Text("Apri tutti i 7 Laboratori Spaziali!", style = MaterialTheme.typography.labelLarge)
+          Text("Apri tutti i 7 Laboratori Spaziali!", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
         }
       }
     }
@@ -446,7 +446,7 @@ private fun CuriosityComicCard(
                   ) {
                     Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Vedi ${planet.name} in 3D", style = MaterialTheme.typography.labelLarge)
+                    Text("Vedi ${planet.name} in 3D", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
                   }
                 }
               } else {

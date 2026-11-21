@@ -262,7 +262,7 @@ fun SplashScreen(
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
             modifier = Modifier.testTag("splash_skip_button"),
           ) {
-            Text("Entra subito", style = MaterialTheme.typography.labelLarge)
+            Text("Entra subito", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
           }
         }
       }

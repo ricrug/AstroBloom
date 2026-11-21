@@ -5,6 +5,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.sp
 import com.ricrug.R
 
@@ -34,6 +36,8 @@ val AppTypography =
         fontWeight = FontWeight.Bold,
         fontSize = 32.sp,
         lineHeight = 38.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     headlineMedium =
       TextStyle(
@@ -41,6 +45,8 @@ val AppTypography =
         fontWeight = FontWeight.Bold,
         fontSize = 26.sp,
         lineHeight = 32.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     headlineSmall =
       TextStyle(
@@ -48,6 +54,8 @@ val AppTypography =
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     titleLarge =
       TextStyle(
@@ -55,6 +63,8 @@ val AppTypography =
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
         lineHeight = 26.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     titleMedium =
       TextStyle(
@@ -62,6 +72,8 @@ val AppTypography =
         fontWeight = FontWeight.Bold,
         fontSize = 17.sp,
         lineHeight = 23.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     bodyLarge =
       TextStyle(
@@ -69,6 +81,8 @@ val AppTypography =
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
+        lineBreak = LineBreak.Paragraph,
+        hyphens = Hyphens.None,
       ),
     bodyMedium =
       TextStyle(
@@ -76,6 +90,8 @@ val AppTypography =
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
+        lineBreak = LineBreak.Paragraph,
+        hyphens = Hyphens.None,
       ),
     labelLarge =
       TextStyle(
@@ -83,6 +99,8 @@ val AppTypography =
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 18.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     labelMedium =
       TextStyle(
@@ -90,6 +108,8 @@ val AppTypography =
         fontWeight = FontWeight.Bold,
         fontSize = 12.sp,
         lineHeight = 16.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
     labelSmall =
       TextStyle(
@@ -97,5 +117,7 @@ val AppTypography =
         fontWeight = FontWeight.Normal,
         fontSize = 11.sp,
         lineHeight = 14.sp,
+        lineBreak = LineBreak.Heading,
+        hyphens = Hyphens.None,
       ),
   )

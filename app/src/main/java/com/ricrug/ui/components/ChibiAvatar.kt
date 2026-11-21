@@ -377,7 +377,7 @@ fun ChibiCustomizerSheet(
       ) {
         Icon(Icons.Rounded.Check, contentDescription = null)
         Spacer(modifier = Modifier.width(8.dp))
-        Text("Salva Profilo!", style = MaterialTheme.typography.titleMedium)
+        Text("Salva Profilo!", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false)
       }
     }
   }

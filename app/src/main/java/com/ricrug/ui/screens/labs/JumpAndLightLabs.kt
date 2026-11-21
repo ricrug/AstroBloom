@@ -290,6 +290,8 @@ fun SpaceJumpLab(
         Text(
           text = if (isJumping) "Salta di nuovo!" else "SALTA ORA SU 5 MONDI!",
           style = MaterialTheme.typography.titleMedium,
+          maxLines = 1,
+          softWrap = false,
         )
       }
 
@@ -525,7 +527,7 @@ fun LightSpeedLab(
           ) {
             Icon(Icons.Rounded.Send, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text(if (isSending) "In volo" else "Invia!", style = MaterialTheme.typography.labelLarge)
+            Text(if (isSending) "In volo" else "Invia!", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
           }
         }
       }

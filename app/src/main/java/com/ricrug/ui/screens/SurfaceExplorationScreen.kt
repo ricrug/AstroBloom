@@ -202,7 +202,13 @@ fun SurfaceExplorationScreen(
       ) {
         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Rientro", modifier = Modifier.size(16.dp), tint = CosmicCyan)
         Spacer(modifier = Modifier.width(6.dp))
-        Text("RIENTRA AL LANDER", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+        Text(
+          text = "RIENTRA AL LANDER",
+          style = MaterialTheme.typography.labelSmall,
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+          softWrap = false,
+        )
       }
 
       // Badge XP Esploratore Planetario
@@ -462,7 +468,7 @@ fun SurfaceExplorationScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AuroraGreen, contentColor = ComicInk),
                 shape = RoundedCornerShape(10.dp),
               ) {
-                Text("CONTINUA ESPLORAZIONE", fontWeight = FontWeight.Bold)
+                Text("CONTINUA ESPLORAZIONE", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
               }
             }
           }
@@ -658,7 +664,7 @@ fun SurfaceExplorationScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = CosmicCyan, contentColor = SpaceVoid),
                 shape = RoundedCornerShape(10.dp),
               ) {
-                Text("ARCHIVIA CAMPIONE", fontWeight = FontWeight.Bold)
+                Text("ARCHIVIA CAMPIONE", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
               }
             }
           }

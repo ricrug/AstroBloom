@@ -467,9 +467,11 @@ fun PlanetDetailScreen(
           Icon(Icons.Rounded.Explore, contentDescription = null)
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "🥾 Sbarca ed Esplora ${body.name} (Prima Persona)!",
+            text = "🥾 Sbarca ed Esplora ${body.name}",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
           )
         }
 
@@ -482,8 +484,10 @@ fun PlanetDetailScreen(
           Icon(Icons.Rounded.FlightLand, contentDescription = null)
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Simula Atterraggio su ${body.name}!",
+            text = "Simula Atterraggio su ${body.name}",
             style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            softWrap = false,
           )
         }
       }
@@ -497,8 +501,10 @@ fun PlanetDetailScreen(
         Icon(Icons.Rounded.Quiz, contentDescription = null)
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-          text = "Fai il Quiz su ${body.name}!",
+          text = "Fai il Quiz su ${body.name}",
           style = MaterialTheme.typography.titleMedium,
+          maxLines = 1,
+          softWrap = false,
         )
       }
 

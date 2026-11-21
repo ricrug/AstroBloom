@@ -1665,9 +1665,11 @@ private fun SurfaceActionOverlay(
             Icon(Icons.Rounded.ArrowUpward, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-              text = "🥾 SCENDI DALL'ASTRONAVE SULLA SUPERFICIE",
+              text = "🥾 SCENDI SULLA SUPERFICIE",
               style = MaterialTheme.typography.labelLarge,
               fontWeight = FontWeight.ExtraBold,
+              maxLines = 1,
+              softWrap = false,
             )
           }
         }
@@ -1700,6 +1702,8 @@ private fun SurfaceActionOverlay(
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         color = StarlightWhite,
+        maxLines = 1,
+        softWrap = false,
       )
     }
 
@@ -1731,6 +1735,8 @@ private fun SurfaceActionOverlay(
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.ExtraBold,
               color = SpaceVoid,
+              maxLines = 1,
+              softWrap = false,
             )
           }
         }
@@ -1759,6 +1765,8 @@ private fun SurfaceActionOverlay(
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.ExtraBold,
               color = SpaceVoid,
+              maxLines = 1,
+              softWrap = false,
             )
           }
         }
@@ -1791,6 +1799,8 @@ private fun SurfaceActionOverlay(
               style = MaterialTheme.typography.labelSmall,
               fontWeight = FontWeight.Bold,
               fontSize = 9.sp,
+              maxLines = 1,
+              softWrap = false,
             )
           }
         }

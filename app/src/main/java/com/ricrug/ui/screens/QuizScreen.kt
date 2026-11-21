@@ -454,6 +454,8 @@ private fun ActiveQuizContent(
           Text(
             text = if (quizState.currentIndex + 1 >= quizState.questions.size) "Vedi Risultato" else "Prossima Domanda",
             style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            softWrap = false,
           )
           Spacer(modifier = Modifier.width(6.dp))
           Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null)
@@ -537,7 +539,7 @@ private fun QuizResultsContent(
       ) {
         Icon(Icons.Rounded.Refresh, contentDescription = null)
         Spacer(modifier = Modifier.width(8.dp))
-        Text("Gioca Ancora!", style = MaterialTheme.typography.titleMedium)
+        Text("Gioca Ancora!", style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false)
       }
       Spacer(modifier = Modifier.height(10.dp))
       OutlinedButton(
@@ -546,7 +548,7 @@ private fun QuizResultsContent(
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth().height(48.dp).testTag("quiz_hub_button"),
       ) {
-        Text("Torna ai Quiz", color = StarlightWhite, style = MaterialTheme.typography.titleMedium)
+        Text("Torna ai Quiz", color = StarlightWhite, style = MaterialTheme.typography.titleMedium, maxLines = 1, softWrap = false)
       }
     }
   }

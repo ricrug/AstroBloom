@@ -116,7 +116,7 @@ fun PlanetsHomeScreen(
                   modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Il Mio Chibi", color = ComicInk, style = MaterialTheme.typography.labelLarge)
+                Text("Il Mio Chibi", color = ComicInk, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
               }
               Button(
                 onClick = onOpenFreeExplore,
@@ -127,7 +127,7 @@ fun PlanetsHomeScreen(
               ) {
                 Icon(Icons.Rounded.RocketLaunch, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("Vola in 3D", style = MaterialTheme.typography.labelLarge)
+                Text("Vola in 3D", style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false)
               }
             }
           },

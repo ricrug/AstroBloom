@@ -586,7 +586,7 @@ fun FreeSpaceExplorer3D(
             ) {
               Icon(Icons.Rounded.Flight, contentDescription = null, modifier = Modifier.size(17.dp))
               Spacer(modifier = Modifier.width(4.dp))
-              Text("Cabina 1ª Persona", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+              Text("Cabina 1ª Persona", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
           }
           if (onOpenAsteroidDodge != null) {
@@ -599,7 +599,7 @@ fun FreeSpaceExplorer3D(
             ) {
               Icon(Icons.Rounded.RocketLaunch, contentDescription = null, modifier = Modifier.size(17.dp))
               Spacer(modifier = Modifier.width(4.dp))
-              Text("Scansa Asteroidi 🚀", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+              Text("Scansa Asteroidi 🚀", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
           }
         }
@@ -670,7 +670,7 @@ fun FreeSpaceExplorer3D(
                 ) {
                   Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(14.dp))
                   Spacer(modifier = Modifier.width(3.dp))
-                  Text("3D", style = MaterialTheme.typography.labelMedium)
+                  Text("3D", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                 }
                 if (activeBody.id != "sun") {
                   Button(
@@ -682,7 +682,7 @@ fun FreeSpaceExplorer3D(
                   ) {
                     Icon(Icons.Rounded.FlightLand, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text("Atterra!", style = MaterialTheme.typography.labelMedium)
+                    Text("Atterra!", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                   }
                 }
               }

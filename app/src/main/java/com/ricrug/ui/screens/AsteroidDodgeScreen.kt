@@ -814,7 +814,7 @@ fun AsteroidDodgeScreen(
           ) {
             Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Decollo Immediato!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Decollo Immediato!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
           }
         }
       }
@@ -861,7 +861,7 @@ fun AsteroidDodgeScreen(
           ) {
             Icon(Icons.Rounded.RocketLaunch, contentDescription = null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Continua verso la Prossima Tappa!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("Prossima Tappa 🚀", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
           }
         }
       }
@@ -916,7 +916,7 @@ fun AsteroidDodgeScreen(
             ) {
               Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(modifier = Modifier.width(4.dp))
-              Text("Riprova", fontWeight = FontWeight.Bold)
+              Text("Riprova", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
             Button(
               onClick = onExitGame,
@@ -924,7 +924,7 @@ fun AsteroidDodgeScreen(
               shape = RoundedCornerShape(14.dp),
               modifier = Modifier.weight(1f).height(46.dp),
             ) {
-              Text("Esci")
+              Text("Esci", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
             }
           }
         }
