@@ -358,6 +358,8 @@ if (-not $NoGitPush) {
     $gitCmd = Get-Command "git" -ErrorAction SilentlyContinue
     if ($gitCmd) {
         try {
+            $origEAP = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
             $gitStatus = & git status --porcelain 2>&1
             if ($gitStatus) {
                 Write-Host "Rilevate modifiche nel workspace. Preparazione commit..." -ForegroundColor DarkGray
@@ -377,6 +379,7 @@ if (-not $NoGitPush) {
             } else {
                 Write-Host "Nessuna nuova modifica locale da committare." -ForegroundColor DarkGray
             }
+            $ErrorActionPreference = $origEAP
 
             # Ottieni branch attivo
             $currentBranch = (& git rev-parse --abbrev-ref HEAD 2>$null)
@@ -388,8 +391,11 @@ if (-not $NoGitPush) {
             }
 
             Write-Host "Invio modifiche al repository remoto origin/$currentBranch..." -ForegroundColor Cyan
+            $origEAP = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
             $pushOut = & git push origin $currentBranch 2>&1
             $pushExit = $LASTEXITCODE
+            $ErrorActionPreference = $origEAP
 
             if ($pushExit -eq 0) {
                 Write-Host "✅ Repository GitHub aggiornato con successo su origin/$currentBranch!" -ForegroundColor Green
